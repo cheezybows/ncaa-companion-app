@@ -1,0 +1,38 @@
+{
+  "name": "@ncaa/storage",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./commissioner": {
+      "types": "./src/commissioner-repositories.ts",
+      "import": "./dist/commissioner-repositories.js"
+    },
+    "./memory": {
+      "types": "./src/memory-repositories.ts",
+      "import": "./dist/memory-repositories.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ncaa/domain": "*",
+    "@ncaa/sync": "*",
+    "better-sqlite3": "^12.10.0"
+  },
+  "devDependencies": {
+    "@ncaa/sync": "*",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.15.32",
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "fixtureId": "schedule-utep-2026-partial",
+  "screenKind": "team_schedule",
+  "partial": true,
+  "teamContext": {
+    "teamKey": "utep",
+    "name": "UTEP",
+    "seasonYear": 2026
+  },
+  "table": {
+    "rows": [
+      {
+        "week": 0,
+        "site": "bye"
+      },
+      {
+        "week": 1,
+        "date": "Sat, Sep 1",
+        "opponentName": "UNLV",
+        "opponentTeamKey": "unlv",
+        "site": "home",
+        "timeOrResult": "W 21-20",
+        "opponentRecord": "1-1"
+      },
+      {
+        "week": 2,
+        "date": "Sat, Sep 8",
+        "opponentName": "Nevada",
+        "opponentTeamKey": "nevada",
+        "site": "away",
+        "timeOrResult": "W 35-30",
+        "opponentRecord": "1-1"
+      },
+      {
+        "week": 3,
+        "date": "Sat, Sep 15",
+        "opponentName": "Boise State",
+        "opponentTeamKey": "boise-state",
+        "site": "away",
+        "timeOrResult": "12:00 PM",
+        "opponentRecord": "1-1"
+      },
+      {
+        "week": 4,
+        "date": "Sat, Sep 22",
+        "opponentName": "Sam Houston",
+        "opponentTeamKey": "sam-houston",
+        "site": "away",
+        "timeOrResult": "6:45 PM",
+        "opponentRecord": "0-2",
+        "isConferenceGame": true
+      },
+      {
+        "week": 5,
+        "date": "Sat, Sep 29",
+        "opponentName": "Wyoming",
+        "opponentTeamKey": "wyoming",
+        "site": "home",
+        "timeOrResult": "7:30 PM",
+        "opponentRecord": "0-2"
+      },
+      {
+        "week": 6,
+        "date": "Sat, Oct 6",
+        "opponentName": "Delaware",
+        "opponentTeamKey": "delaware",
+        "site": "away",
+        "timeOrResult": "12:30 PM",
+        "opponentRecord": "1-1",
+        "isConferenceGame": true
+      },
+      {
+        "week": 7,
+        "date": "Sat, Oct 13",
+        "opponentName": "Liberty",
+        "opponentTeamKey": "liberty",
+        "site": "home",
+        "timeOrResult": "7:00 PM",
+        "opponentRecord": "1-1",
+        "isConferenceGame": true
+      },
+      {
+        "week": 8,
+        "site": "bye"
+      },
+      {
+        "week": 9,
+        "date": "Sat, Oct 27",
+        "opponentName": "Kennesaw State",
+        "opponentTeamKey": "kennesaw-state",
+        "site": "home",
+        "timeOrResult": "6:00 PM",
+        "opponentRecord": "0-2",
+        "isConferenceGame": true
+      }
+    ]
+  }
+}

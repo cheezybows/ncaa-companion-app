@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-electron/
+release/
+*.db
+*.db-journal
+.working-copies/
+.env
+.env.local
+.DS_Store
+Thumbs.db
+*.log
+coverage/
+.vite/

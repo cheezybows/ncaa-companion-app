@@ -1,0 +1,30 @@
+{
+  "name": "@ncaa/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "npm --prefix ../.. run build:packages && concurrently -k \"npm run dev -w @ncaa/web -- --host 127.0.0.1\" \"npm run dev:electron\"",
+    "dev:electron": "wait-on http://127.0.0.1:5173 && npm run build:main && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .",
+    "rebuild:native": "electron-rebuild -w better-sqlite3",
+    "build": "npm run build:main && npm run build -w @ncaa/web",
+    "build:main": "tsc -p tsconfig.main.json",
+    "typecheck": "tsc --noEmit -p tsconfig.main.json"
+  },
+  "dependencies": {
+    "@ncaa/domain": "*",
+    "@ncaa/parsers": "*",
+    "@ncaa/storage": "*",
+    "@ncaa/sync": "*"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.2",
+    "@types/node": "^22.15.32",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "41.7.0",
+    "typescript": "^5.8.3",
+    "wait-on": "^8.0.3"
+  }
+}
