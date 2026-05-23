@@ -10,13 +10,16 @@
     "rebuild:native": "electron-rebuild -w better-sqlite3",
     "build": "npm run build:main && npm run build -w @ncaa/web",
     "build:main": "tsc -p tsconfig.main.json",
-    "typecheck": "tsc --noEmit -p tsconfig.main.json"
+    "typecheck": "tsc --noEmit -p tsconfig.main.json",
+    "test": "vitest run"
   },
   "dependencies": {
     "@ncaa/domain": "*",
     "@ncaa/parsers": "*",
     "@ncaa/storage": "*",
-    "@ncaa/sync": "*"
+    "@ncaa/sync": "*",
+    "sharp": "^0.34.2",
+    "tesseract.js": "^5.1.1"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.7.2",
@@ -25,6 +28,7 @@
     "cross-env": "^7.0.3",
     "electron": "41.7.0",
     "typescript": "^5.8.3",
+    "vitest": "^3.2.4",
     "wait-on": "^8.0.3"
   }
 }

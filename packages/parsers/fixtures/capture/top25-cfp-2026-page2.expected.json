@@ -1,0 +1,23 @@
+{
+  "fixtureId": "top25-cfp-2026-page2",
+  "screenKind": "top25_rankings",
+  "partial": true,
+  "seasonYear": 2026,
+  "pollType": "top25",
+  "entries": [
+    { "rank": 12, "teamKey": "western-kentucky", "teamName": "Western Kentucky", "wins": 12, "losses": 2 },
+    { "rank": 13, "teamKey": "ohio-state", "teamName": "Ohio State", "wins": 11, "losses": 2 },
+    { "rank": 14, "teamKey": "washington", "teamName": "Washington", "wins": 9, "losses": 3 },
+    { "rank": 15, "teamKey": "tulane", "teamName": "Tulane", "wins": 11, "losses": 3 },
+    { "rank": 16, "teamKey": "michigan", "teamName": "Michigan", "wins": 10, "losses": 3 },
+    { "rank": 17, "teamKey": "appalachian-state", "teamName": "Appalachian State", "wins": 9, "losses": 4 },
+    { "rank": 18, "teamKey": "penn-state", "teamName": "Penn State", "wins": 9, "losses": 4 },
+    { "rank": 19, "teamKey": "ole-miss", "teamName": "Ole Miss", "wins": 10, "losses": 3 },
+    { "rank": 20, "teamKey": "wisconsin", "teamName": "Wisconsin", "wins": 9, "losses": 3 },
+    { "rank": 21, "teamKey": "florida-international", "teamName": "Florida International", "wins": 11, "losses": 3 },
+    { "rank": 22, "teamKey": "clemson", "teamName": "Clemson", "wins": 9, "losses": 4 },
+    { "rank": 23, "teamKey": "missouri", "teamName": "Missouri", "wins": 8, "losses": 4 },
+    { "rank": 24, "teamKey": "georgia", "teamName": "Georgia", "wins": 9, "losses": 4 },
+    { "rank": 25, "teamKey": "utah-state", "teamName": "Utah State", "wins": 12, "losses": 2 }
+  ]
+}

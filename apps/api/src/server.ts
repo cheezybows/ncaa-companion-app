@@ -6,7 +6,6 @@ import {
   PLACEHOLDER_ROSTERS,
   PLACEHOLDER_TEAMS,
 } from '@ncaa/domain';
-import { loadRosterCaptureFixture, rosterCaptureFixtureToImport } from '@ncaa/parsers';
 import { createSyncPayload, type DynastySyncPayload, type SeasonDataUpload } from '@ncaa/sync';
 import {
   approveClaim,
@@ -208,18 +207,11 @@ app.post('/sync/batches', (req, res) => {
   res.status(updated ? 201 : 200).json({ batch, payload, updated });
 });
 
-app.post('/sync/fixtures/roster-capture', (req, res) => {
-  const uploadedByUserId = (req.body?.uploadedByUserId as string) ?? 'user-admin';
-  const fixtureImport = rosterCaptureFixtureToImport(loadRosterCaptureFixture());
-  const payload = createSyncPayload(
-    uploadedByUserId,
-    PLACEHOLDER_DYNASTY,
-    [fixtureImport.team, ...PLACEHOLDER_TEAMS],
-    { ...PLACEHOLDER_ROSTERS, [fixtureImport.team.id]: fixtureImport.roster },
-    PLACEHOLDER_PROGRESSION
-  );
-  const { batch, updated } = ingestSync(payload);
-  res.status(updated ? 201 : 200).json({ batch, payload, fixture: fixtureImport, updated });
+app.post('/sync/fixtures/roster-capture', (_req, res) => {
+  res.status(410).json({
+    error:
+      'Roster capture expected-value fixtures were removed. Use universal layouts plus OCR/manual entry instead.',
+  });
 });
 
 app.listen(port, () => {
@@ -228,7 +220,9 @@ app.listen(port, () => {
     console.log(`NCAA API using desktop SQLite: ${storage.path}`);
   } else if (storage.mode === 'json') {
     console.log(`NCAA API using desktop state mirror: ${storage.path}`);
-    if (storage.reason) console.log(`NCAA API SQLite unavailable, mirror fallback active: ${storage.reason}`);
+    if (storage.reason) {
+      console.log(`NCAA API fell back to mirror after SQLite failed: ${storage.reason}`);
+    }
   } else {
     console.log(
       `NCAA API using seed fallback (${storage.reason}${storage.path ? `: ${storage.path}` : ''})`

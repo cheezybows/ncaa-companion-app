@@ -49,3 +49,24 @@ After the PC game ships, add real parser fixtures under `packages/parsers/fixtur
 ## OCR fallback
 
 Screenshot/OCR capture is deferred until local file readability is evaluated. See `docs/ocr-evaluation.md`.
+
+## Cursor Skills
+
+Repo-local skills:
+
+- `ncaa-app-functionality` — app functionality, architecture, commissioner workflow, league management, storage, sync payloads, IPC, hosted portal, publish flow
+- `ncaa-frontend-theming` — frontend, styling, CSS, theme, layout, React UI, commissioner UI, portal UI, app shell
+- `ncaa-ocr-imports` — OCR, Tesseract, screenshot import, roster OCR, schedule OCR, Top 25 OCR, capture imports, image parsing
+
+Cursor/user skills:
+
+- `babysit` — babysit PR, keep PR merge-ready, triage comments, fix CI, resolve conflicts
+- `canvas` — canvas, dashboard, chart, table, visual artifact, analysis view, interactive report
+- `create-hook` — create hook, hooks.json, agent event automation, Cursor hooks
+- `create-rule` — create rule, Cursor rules, project conventions, AGENTS.md, `.cursor/rules`
+- `create-skill` — create skill, SKILL.md, new agent skill, skill structure
+- `loop` — loop, recurring task, polling, cron-like, interval check, monitor status
+- `sdk` — Cursor SDK, `@cursor/sdk`, `cursor-sdk`, `Agent.create`, `Agent.prompt`, cloud agents, programmatic agents
+- `split-to-prs` — split PR, split branch, reviewable PRs, break up changes
+- `statusline` — status line, statusline, CLI status bar, prompt footer
+- `update-cursor-settings` — settings.json, editor settings, Cursor settings, VSCode settings, theme, font size, auto save

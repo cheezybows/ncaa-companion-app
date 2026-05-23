@@ -1,8 +1,26 @@
-import type { IndexedFile, ScanSession, AppUser, Team, TeamTenure } from '@ncaa/domain';
+import type {
+  IndexedFile,
+  ScanSession,
+  AppUser,
+  DynastyArchiveSummary,
+  DynastyCheckpoint,
+  PlayerCatalogEntry,
+  PostseasonResult,
+  RankingEntry,
+  Roster,
+  ScheduleGame,
+  SeasonAdvanceAssignmentInput,
+  SeasonAdvancePreview,
+  SeasonAdvanceResult,
+  Team,
+  TeamTenure,
+  WeekAdvancePreview,
+  WeekAdvanceResult,
+} from '@ncaa/domain';
 import type { PublishedBatchRecord, RosterImportRecord } from '@ncaa/storage';
-import type { RosterCaptureImport, ScheduleCaptureImport } from '@ncaa/parsers';
+import type { RosterCaptureImport, ScheduleCaptureImport, Top25CaptureImport } from '@ncaa/parsers';
 
-export type { RosterCaptureImport, ScheduleCaptureImport };
+export type { RosterCaptureImport, ScheduleCaptureImport, Top25CaptureImport };
 
 export interface ScanStore {
   createSession(session: ScanSession): void;
@@ -25,9 +43,21 @@ export interface AppSummary {
   hostedStateMirrorPath?: string;
 }
 
+export interface CommissionerLeagueSummary {
+  id: string;
+  name: string;
+  startingSeasonYear: number;
+  status: 'active' | 'archived';
+  commissionerUserId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CommissionerConfig {
   apiUrl: string;
   dynastyId: string;
+  leagueName: string;
+  startingSeasonYear: number;
   commissionerUserId: string;
   hostedStateMirrorPath?: string;
 }
@@ -51,6 +81,37 @@ export interface NcaaApi {
     teamId: string;
   }): Promise<ScheduleCaptureImport | null>;
   listScheduleImports?(): Promise<ScheduleCaptureImport[]>;
+  importTop25Screenshot?(input: { dynastyId: string }): Promise<Top25CaptureImport | null>;
+  listTop25Imports?(): Promise<Top25CaptureImport[]>;
+  saveManualRoster?(input: { dynastyId: string; teamId: string; roster: Roster }): Promise<RosterImportRecord>;
+  saveManualSchedule?(input: {
+    dynastyId: string;
+    teamId: string;
+    schedule: ScheduleGame[];
+  }): Promise<ScheduleCaptureImport>;
+  saveManualTop25?(input: {
+    dynastyId: string;
+    entries: RankingEntry[];
+  }): Promise<Top25CaptureImport>;
+  clearTeamImports?(input: {
+    dynastyId: string;
+    teamId: string;
+  }): Promise<{ removedRosterImports: number; removedScheduleImports: number }>;
+  clearAllImports?(input: {
+    dynastyId: string;
+  }): Promise<{
+    removedRosterImports: number;
+    removedScheduleImports: number;
+    removedTop25Imports: number;
+  }>;
+  undoLatestRosterImport?(input: {
+    dynastyId: string;
+    teamId: string;
+  }): Promise<{ removedRosterImports: number }>;
+  undoLatestScheduleImport?(input: {
+    dynastyId: string;
+    teamId: string;
+  }): Promise<{ removedScheduleImports: number }>;
   getCommissionerConfig?(): Promise<CommissionerConfig>;
   listUsers?(): Promise<AppUser[]>;
   listTeams?(): Promise<Team[]>;
@@ -77,4 +138,46 @@ export interface NcaaApi {
   listRosterImports?(dynastyId?: string): Promise<RosterImportRecord[]>;
   publishToHosted?(): Promise<PublishResult>;
   listPublishHistory?(dynastyId?: string): Promise<PublishedBatchRecord[]>;
+  previewSeasonAdvance?(
+    assignments?: SeasonAdvanceAssignmentInput[]
+  ): Promise<SeasonAdvancePreview>;
+  advanceToNextSeason?(assignments: SeasonAdvanceAssignmentInput[]): Promise<SeasonAdvanceResult>;
+  previewWeekAdvance?(): Promise<WeekAdvancePreview>;
+  advanceToNextWeek?(): Promise<WeekAdvanceResult>;
+  getDynastyArchiveSummary?(): Promise<DynastyArchiveSummary>;
+  listPostseasonResults?(seasonYear?: number): Promise<PostseasonResult[]>;
+  savePostseasonResult?(
+    input: Omit<PostseasonResult, 'id' | 'dynastyId'> & { id?: string }
+  ): Promise<PostseasonResult>;
+  deletePostseasonResult?(id: string): Promise<void>;
+  updateCheckpoint?(input: {
+    checkpointId: string;
+    notes?: string;
+    correctionReason?: string;
+  }): Promise<DynastyCheckpoint>;
+  updateCheckpointRoster?(input: {
+    checkpointId: string;
+    teamId: string;
+    roster: Roster;
+    correctionReason?: string;
+  }): Promise<DynastyCheckpoint>;
+  updatePlayerCatalogEntry?(input: {
+    playerId: string;
+    exitStatus?: PlayerCatalogEntry['exitStatus'];
+    exitSeasonYear?: number;
+    exitTeamId?: string;
+    correctionReason?: string;
+  }): Promise<PlayerCatalogEntry>;
+  listLeagues?(): Promise<CommissionerLeagueSummary[]>;
+  createLeague?(input: {
+    name: string;
+    startingSeasonYear: number;
+    selfUser: {
+      displayName: string;
+      email: string;
+      temporaryPassword?: string;
+    };
+  }): Promise<{ league: CommissionerLeagueSummary; user: AppUser }>;
+  switchActiveLeague?(leagueId: string): Promise<CommissionerLeagueSummary>;
+  deleteLeague?(leagueId: string): Promise<void>;
 }

@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@ncaa/domain": "*",
+    "@ncaa/parsers": "*",
     "@ncaa/sync": "*",
     "better-sqlite3": "^12.10.0"
   },

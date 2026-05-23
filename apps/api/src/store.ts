@@ -53,7 +53,21 @@ export function createSession(userId: string, password: string): AuthSession | n
 }
 
 export function getSession(userId: string): AuthSession | undefined {
-  return sessions.get(userId);
+  const existing = sessions.get(userId);
+  if (existing) return existing;
+
+  const user = listUsers().find((item) => item.id === userId);
+  if (!user) return undefined;
+  const activeTenure = listTenures(userId, DEMO_DYNASTY_ID).find(
+    (tenure) => tenure.status === 'active'
+  );
+  const session: AuthSession = {
+    user,
+    dynastyId: DEMO_DYNASTY_ID,
+    activeTenure,
+  };
+  sessions.set(userId, session);
+  return session;
 }
 
 export function listClaims(dynastyId: string): TeamClaim[] {
@@ -264,6 +278,10 @@ export function getDynastyBundle() {
     teams: payload?.teams ?? PLACEHOLDER_TEAMS,
     rosters: payload?.rosters ?? PLACEHOLDER_ROSTERS,
     progression: payload?.progression ?? PLACEHOLDER_PROGRESSION,
+    checkpoints: payload?.checkpoints ?? payload?.dynasty?.checkpoints ?? [],
+    playerCatalog: payload?.playerCatalog ?? payload?.dynasty?.playerCatalog ?? [],
+    postseasonResults: payload?.postseasonResults ?? payload?.dynasty?.postseasonResults ?? [],
+    rankings: payload?.dynasty.rankings ?? PLACEHOLDER_DYNASTY.rankings ?? [],
     hosted: DEMO_HOSTED_DYNASTY,
     importState: getImportedState(DEMO_DYNASTY_ID) ?? null,
     syncBatches: localHistory?.map((record) => ({
@@ -369,6 +387,7 @@ function calculateStandings(games: ScheduleGame[]): SeasonStanding[] {
   };
 
   for (const game of games) {
+    if (game.isBye) continue;
     ensureStanding(game.homeTeamId);
     ensureStanding(game.awayTeamId);
     if (!game.isPlayed || game.homeScore === undefined || game.awayScore === undefined) continue;

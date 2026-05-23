@@ -8,8 +8,8 @@ import {
   type ReactNode,
 } from 'react';
 import type { AuthSession } from '@ncaa/domain';
-import { clearSession, listDemoUsers, loadSession, signInAsUserId } from '@ncaa/auth';
-import { signIn as apiSignIn } from './api';
+import { clearSession, listDemoUsers, loadSession, saveSession } from '@ncaa/auth';
+import { fetchSession, signIn as apiSignIn } from './api';
 
 interface AuthContextValue {
   session: AuthSession | null;
@@ -33,6 +33,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setSession(cached);
+      try {
+        const hosted = await fetchSession(cached.user.id);
+        saveSession(hosted);
+        setSession(hosted);
+      } catch {
+        // Keep the last hosted session if the API is temporarily unavailable.
+      }
       setLoading(false);
     }
 
@@ -41,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(async (userId: string, password: string) => {
     const next = await apiSignIn(userId, password);
-    signInAsUserId(userId);
+    saveSession(next);
     setSession(next);
   }, []);
 

@@ -3,11 +3,7 @@
   "screenKind": "roster_by_position",
   "game": "College Football 25",
   "partial": true,
-  "notes": [
-    "Single position tab (CB) for one team; not a full-team roster.",
-    "One row is highlighted; detail panel shows extended fields for that player only.",
-    "Table may scroll horizontally for more attributes and vertically for more players."
-  ],
+  "notes": [],
   "navigation": {
     "teamCycle": "L2",
     "positionCycle": "R2",
@@ -16,58 +12,27 @@
   },
   "teamContext": {
     "name": "Oregon State Beavers",
-    "rank": 4,
-    "record": "11-2",
-    "conferenceRecord": "7-1",
-    "conferenceStanding": "2ND IN BIG TEN",
     "conference": "BIG TEN",
     "overallRating": 81,
     "offensiveRating": 81,
     "defensiveRating": 81
   },
   "regions": {
-    "header": { "x": 0, "y": 0, "w": 1, "h": 0.08 },
-    "teamBar": { "x": 0, "y": 0.08, "w": 1, "h": 0.1 },
     "table": { "x": 0.02, "y": 0.2, "w": 0.53, "h": 0.68 },
-    "detailPanel": { "x": 0.55, "y": 0.18, "w": 0.43, "h": 0.72 },
-    "footer": { "x": 0, "y": 0.9, "w": 1, "h": 0.1 }
+    "detailPanel": { "x": 0.55, "y": 0.18, "w": 0.43, "h": 0.72 }
   },
   "table": {
     "columns": [
-      { "key": "redshirt", "header": "RS", "kind": "icon" },
       { "key": "name", "header": "NAME", "kind": "text" },
       { "key": "year", "header": "YEAR", "kind": "text" },
       { "key": "position", "header": "POS", "kind": "text" },
-      { "key": "overall", "header": "OVR", "kind": "number", "sortActive": true },
-      { "key": "speed", "header": "SPD", "kind": "number", "ratingCode": "SPD" },
-      { "key": "acceleration", "header": "ACC", "kind": "number", "ratingCode": "ACC" },
-      { "key": "agility", "header": "AGI", "kind": "number", "ratingCode": "AGI" },
-      { "key": "changeOfDirection", "header": "COD", "kind": "number", "ratingCode": "COD" },
-      { "key": "strength", "header": "STR", "kind": "number", "ratingCode": "STR" },
-      { "key": "awareness", "header": "AWR", "kind": "number", "ratingCode": "AWR" },
-      { "key": "playRecognition", "header": "PRC", "kind": "number", "ratingCode": "PRC" },
-      { "key": "manCoverage", "header": "MCV", "kind": "number", "ratingCode": "MCV" }
+      { "key": "overall", "header": "OVR", "kind": "number", "sortActive": true }
     ],
     "visibleRowCount": 10,
     "focusedRowIndex": 4,
     "hasMoreRows": true,
     "hasHorizontalScroll": true
   },
-  "detailPanel": {
-    "fields": [
-      "fullName",
-      "position",
-      "jerseyNumber",
-      "overall",
-      "archetype",
-      "classYear",
-      "height",
-      "weight",
-      "hometown",
-      "physicalAbilities",
-      "mentalAbilities",
-      "developmentTrait"
-    ]
-  },
+  "detailPanel": { "fields": ["fullName", "position", "overall"] },
   "imageFile": "roster-cb-oregon-state.partial.jpg"
 }

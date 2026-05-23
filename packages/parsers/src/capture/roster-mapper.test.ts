@@ -23,4 +23,20 @@ describe('rosterCaptureFixtureToImport', () => {
     expect(focused?.ratings.speed).toBe(93);
     expect(focused?.abilities).toHaveLength(2);
   });
+
+  it('uses the upload-selected team as the destination team', () => {
+    const imported = rosterCaptureFixtureToImport(loadRosterCaptureFixture(), {
+      team: {
+        id: 'team-custom',
+        name: 'Custom Upload Team',
+        abbreviation: 'CUT',
+        conferenceId: 'big-ten',
+      },
+    });
+
+    expect(imported.team.id).toBe('team-custom');
+    expect(imported.roster.teamId).toBe('team-custom');
+    expect(imported.roster.players[0]?.teamId).toBe('team-custom');
+    expect(imported.roster.players.length).toBeGreaterThan(0);
+  });
 });

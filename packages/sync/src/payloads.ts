@@ -1,6 +1,9 @@
 import type {
   Dynasty,
+  DynastyCheckpoint,
+  PlayerCatalogEntry,
   PlayerProgression,
+  PostseasonResult,
   Roster,
   ScheduleGame,
   SeasonStanding,
@@ -17,6 +20,9 @@ export interface DynastySyncPayload {
   teams: Team[];
   rosters: Record<string, Roster>;
   progression: PlayerProgression[];
+  checkpoints?: DynastyCheckpoint[];
+  playerCatalog?: PlayerCatalogEntry[];
+  postseasonResults?: PostseasonResult[];
 }
 
 export interface SyncBatchRequest {
@@ -62,7 +68,12 @@ export function createSyncPayload(
   dynasty: Dynasty,
   teams: Team[],
   rosters: Record<string, Roster>,
-  progression: PlayerProgression[]
+  progression: PlayerProgression[],
+  extras?: {
+    checkpoints?: DynastyCheckpoint[];
+    playerCatalog?: PlayerCatalogEntry[];
+    postseasonResults?: PostseasonResult[];
+  }
 ): DynastySyncPayload {
   const batchId = crypto.randomUUID();
   return {
@@ -74,5 +85,8 @@ export function createSyncPayload(
     teams,
     rosters,
     progression,
+    checkpoints: extras?.checkpoints,
+    playerCatalog: extras?.playerCatalog,
+    postseasonResults: extras?.postseasonResults,
   };
 }

@@ -153,6 +153,7 @@ export interface ScheduleGame {
   date?: string;
   homeTeamId: TeamId;
   awayTeamId: TeamId;
+  isBye?: boolean;
   homeScore?: number;
   awayScore?: number;
   isConferenceGame?: boolean;
@@ -168,6 +169,29 @@ export interface SeasonStanding {
   ranking?: number;
 }
 
+export interface RankingEntry {
+  rank: number;
+  previousRank?: number;
+  teamId: TeamId;
+  teamName: string;
+  wins: number;
+  losses: number;
+  lastWeekResult?: string;
+  thisWeekOpponent?: string;
+  movement?: 'up' | 'down' | 'same';
+}
+
+export interface RankingSnapshot {
+  id: string;
+  dynastyId: DynastyId;
+  seasonYear: number;
+  pollType: 'top25';
+  capturedAt: string;
+  entries: RankingEntry[];
+  sourceLabel?: string;
+  fixtureId?: string;
+}
+
 export interface Season {
   id: SeasonId;
   dynastyId: DynastyId;
@@ -175,6 +199,9 @@ export interface Season {
   label: string;
   schedule: ScheduleGame[];
   standings: SeasonStanding[];
+  conferenceChampionTeamIds?: TeamId[];
+  playoffTeamIds?: TeamId[];
+  nationalChampionTeamId?: TeamId;
 }
 
 export interface Recruit {
@@ -191,12 +218,28 @@ export interface Recruit {
   ratings: PlayerRatings;
 }
 
+export interface TeamRosterSnapshot {
+  seasonYear: number;
+  teamId: TeamId;
+  roster: Roster;
+  sourceLabel: string;
+  archivedAt: string;
+  week?: number;
+  checkpointId?: string;
+  snapshotType?: 'weekly' | 'season_final' | 'manual';
+}
+
 export interface Dynasty {
   id: DynastyId;
   name: string;
   userTeamId?: TeamId;
   currentSeasonYear: number;
   seasons: Season[];
+  rankings?: RankingSnapshot[];
+  teamRosterSnapshots?: TeamRosterSnapshot[];
+  checkpoints?: import('./progression-archive.js').DynastyCheckpoint[];
+  playerCatalog?: import('./progression-archive.js').PlayerCatalogEntry[];
+  postseasonResults?: import('./progression-archive.js').PostseasonResult[];
   recruitingClasses: { classYear: number; recruits: Recruit[] }[];
   createdAt: string;
   updatedAt: string;

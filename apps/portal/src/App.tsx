@@ -8,6 +8,7 @@ import {
   PLACEHOLDER_TEAMS,
 } from '@ncaa/domain';
 import type {
+  AppUser,
   Player,
   PlayerAbility,
   PlayerProgression,
@@ -17,7 +18,7 @@ import type {
   TeamTenure,
 } from '@ncaa/domain';
 import { roleLabel } from '@ncaa/auth';
-import { fetchTenures } from './api';
+import { fetchTenures, fetchUsers } from './api';
 import { DynastyDataProvider, useDynastyData } from './dynasty-data-context';
 import { listDemoUsers, useAuth } from './auth-context';
 
@@ -229,19 +230,23 @@ function CoachSeasonHomePage() {
   const { rosters, progression, teams, dynasty } = useDynastyData();
   const teamId = session?.activeTenure?.teamId;
   const roster = teamId ? rosters[teamId] : undefined;
+  const [coachUsers, setCoachUsers] = useState<AppUser[]>([]);
   const [tenuresByUser, setTenuresByUser] = useState<Record<string, TeamTenure[]>>({});
 
   useEffect(() => {
     async function loadUserTeams() {
-      const coaches = listDemoUsers().filter((user) => user.role === 'coach');
-      const entries = await Promise.all(
-        coaches.map(async (user) => [user.id, await fetchTenures(user.id, DYNASTY_ID)] as const)
+      const coaches = (await fetchUsers()).filter(
+        (user) => user.role === 'coach' && (user.accessStatus ?? 'active') === 'active'
       );
+      const entries = await Promise.all(
+        coaches.map(async (user) => [user.id, await fetchTenures(user.id, dynastyId)] as const)
+      );
+      setCoachUsers(coaches);
       setTenuresByUser(Object.fromEntries(entries));
     }
 
     void loadUserTeams();
-  }, []);
+  }, [dynastyId]);
 
   if (!teamId) {
     return (
@@ -254,12 +259,16 @@ function CoachSeasonHomePage() {
 
   const teamSchedule = getTeamSchedule(teamId, dynasty);
   const record = getTeamRecord(teamId, teamSchedule);
+  const conference = conferenceName(teamConference(teamId, teams));
+  const conferenceRecord = getConferenceRecord(teamId, teamSchedule, teams);
   const userTeamIds = new Set(
     Object.values(tenuresByUser)
       .flat()
       .filter((tenure) => tenure.status === 'active')
       .map((tenure) => tenure.teamId)
   );
+  const userGames = teamSchedule.filter((game) => isUserGameForTeam(game, teamId, userTeamIds));
+  const userGameRecord = getTeamRecord(teamId, userGames);
   const topPlayers = [...(roster?.players ?? [])]
     .sort((a, b) => (b.ratings.overall ?? 0) - (a.ratings.overall ?? 0))
     .slice(0, 3);
@@ -274,7 +283,8 @@ function CoachSeasonHomePage() {
     })
     .sort((a, b) => b.gain - a.gain)
     .slice(0, 3);
-  const top25 = getCurrentTop25(teams);
+  const top25 = getCurrentTop25(teams, dynasty);
+  const currentRank = top25.find((row) => row.team.id === teamId)?.rank;
 
   return (
     <section className="grid two">
@@ -283,9 +293,12 @@ function CoachSeasonHomePage() {
         <h3>{teamName(teamId, teams)} Season Dashboard</h3>
         <div className="metric-grid">
           <Metric label="Record" value={`${record.wins}-${record.losses}`} />
-          <Metric label="Conference" value={conferenceName(teamConference(teamId, teams))} />
-          <Metric label="Next Game" value={nextGameLabel(teamId, teamSchedule, teams)} />
-          <Metric label="User Games" value={teamSchedule.filter((game) => isUpcomingUserGame(game, teamId, userTeamIds)).length} />
+          <Metric label={`Conference - ${conference}`} value={`${conferenceRecord.wins}-${conferenceRecord.losses}`} />
+          <Metric label="Current Rank" value={currentRank ? `#${currentRank}` : 'NR'} />
+          <UserGamesMetric
+            games={userGames.length}
+            record={`${userGameRecord.wins}-${userGameRecord.losses}`}
+          />
         </div>
       </div>
 
@@ -305,14 +318,22 @@ function CoachSeasonHomePage() {
             <tbody>
               {teamSchedule.map((game) => {
                 const opponentId = game.homeTeamId === teamId ? game.awayTeamId : game.homeTeamId;
-                const isUserGame = isUpcomingUserGame(game, teamId, userTeamIds);
+                const isUserGame = isUserGameForTeam(game, teamId, userTeamIds);
                 return (
                   <tr key={game.id} className={isUserGame ? 'user-game-row' : undefined}>
                     <td>{game.week}</td>
-                    <td>{teamName(opponentId, teams)}</td>
-                    <td>{game.homeTeamId === teamId ? 'Home' : 'Away'}</td>
-                    <td>{game.isPlayed ? `${game.homeScore}-${game.awayScore}` : 'Upcoming'}</td>
-                    <td>{isUserGame ? `vs ${activeCoachForTeam(opponentId, tenuresByUser)}` : '-'}</td>
+                    <td>{game.isBye ? 'BYE' : teamName(opponentId, teams)}</td>
+                    <td>{game.isBye ? 'BYE' : game.homeTeamId === teamId ? 'Home' : 'Away'}</td>
+                    <td>{formatGameResultForTeam(game, teamId)}</td>
+                    <td>
+                      {isUserGame ? (
+                        <span className="user-game-badge">
+                          vs {activeCoachForTeam(opponentId, tenuresByUser, coachUsers)}
+                        </span>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
                   </tr>
                 );
               })}
@@ -333,19 +354,23 @@ function CoachSeasonHomePage() {
               </tr>
             </thead>
             <tbody>
-              {top25.map((team, index) => {
-                const rankedRecord = getTeamRecord(team.id, getTeamSchedule(team.id, dynasty));
-                const isUserTeam = userTeamIds.has(team.id);
-                const isCurrentCoachTeam = team.id === teamId;
+              {top25.length === 0 && (
+                <tr>
+                  <td colSpan={3}>No Top 25 upload published yet.</td>
+                </tr>
+              )}
+              {top25.map((row) => {
+                const isUserTeam = userTeamIds.has(row.team.id);
+                const isCurrentCoachTeam = row.team.id === teamId;
                 return (
-                  <tr key={team.id} className={isUserTeam ? 'ranked-user-row' : undefined}>
-                    <td>{index + 1}</td>
+                  <tr key={row.team.id} className={isUserTeam ? 'ranked-user-row' : undefined}>
+                    <td>{row.rank}</td>
                     <td>
                       {isCurrentCoachTeam && <span className="rank-star">★</span>}
-                      {team.name}
+                      {row.team.name}
                     </td>
                     <td>
-                      {rankedRecord.wins}-{rankedRecord.losses}
+                      {row.wins}-{row.losses}
                     </td>
                   </tr>
                 );
@@ -398,8 +423,8 @@ function CoachTeamPage() {
   const [viewMode, setViewMode] = useState<'graph' | 'table'>('graph');
   const [positionFilter, setPositionFilter] = useState('all');
   const [rosterSort, setRosterSort] = useState<{ key: RosterSortKey; direction: SortDirection }>({
-    key: 'position',
-    direction: 'asc',
+    key: 'overall',
+    direction: 'desc',
   });
 
   const players = roster?.players ?? [];
@@ -419,6 +444,9 @@ function CoachTeamPage() {
       if (rosterSort.key === 'jersey') {
         const jerseyDelta = (a.jerseyNumber ?? 999) - (b.jerseyNumber ?? 999);
         if (jerseyDelta !== 0) return jerseyDelta * direction;
+      }
+      if (rosterSort.key === 'name') {
+        return `${a.lastName}, ${a.firstName}`.localeCompare(`${b.lastName}, ${b.firstName}`) * direction;
       }
       if (rosterSort.key === 'position') {
         const positionDelta = positionSortValue(a.position) - positionSortValue(b.position);
@@ -451,7 +479,7 @@ function CoachTeamPage() {
       return `${a.lastName}, ${a.firstName}`.localeCompare(`${b.lastName}, ${b.firstName}`) * direction;
     });
   }, [players, positionFilter, rosterSort]);
-  const selectedPlayer = players.find((player) => player.id === selectedPlayerId) ?? players[0];
+  const selectedPlayer = players.find((player) => player.id === selectedPlayerId) ?? sortedPlayers[0] ?? players[0];
   const selectedProgression = selectedPlayer
     ? getProgressionForPlayer(selectedPlayer, teamId ?? '', publishedProgression)
     : undefined;
@@ -459,7 +487,7 @@ function CoachTeamPage() {
 
   useEffect(() => {
     const requestedPlayer = roster?.players.find((player) => player.id === requestedPlayerId);
-    setSelectedPlayerId(requestedPlayer?.id ?? roster?.players[0]?.id ?? '');
+    setSelectedPlayerId(requestedPlayer?.id ?? '');
     setPositionFilter('all');
   }, [requestedPlayerId, roster, teamId]);
 
@@ -588,7 +616,16 @@ function CoachTeamPage() {
                   <td>{player.ratings.speed ?? '-'}</td>
                   <td>{player.ratings.acceleration ?? '-'}</td>
                   <td>{player.ratings.changeOfDirection ?? '-'}</td>
-                  <td>{importantStatsForPosition(player).join(' · ')}</td>
+                  <td>
+                    <div className="key-stat-list">
+                      {importantStatsForPosition(player).map((stat) => (
+                        <span key={stat.label} className="key-stat-chip">
+                          <em>{stat.label}</em>
+                          <strong>{stat.value}</strong>
+                        </span>
+                      ))}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -732,41 +769,71 @@ function CoachCareerPage() {
 
 function CoachArchivePage() {
   const { session } = useAuth();
-  const { rosters, progression: publishedProgression, dynasty, teams } = useDynastyData();
+  const {
+    rosters,
+    progression: publishedProgression,
+    dynasty,
+    teams,
+    checkpoints,
+    postseasonResults,
+    playerCatalog,
+  } = useDynastyData();
   const [tenures, setTenures] = useState<TeamTenure[]>([]);
   const [selectedTenureId, setSelectedTenureId] = useState('');
+  const [activeTenure, setActiveTenure] = useState<TeamTenure | null>(null);
 
   useEffect(() => {
     if (!session) return;
     void fetchTenures(session.user.id, DYNASTY_ID).then((items) => {
       const archived = items.filter((tenure) => tenure.status !== 'active');
+      const current = items.find((tenure) => tenure.status === 'active') ?? null;
       setTenures(archived);
+      setActiveTenure(current);
       setSelectedTenureId(archived[0]?.id ?? '');
     });
   }, [session]);
 
   const selectedTenure = tenures.find((tenure) => tenure.id === selectedTenureId) ?? tenures[0];
-  const roster = selectedTenure ? rosters[selectedTenure.teamId] : undefined;
+  const rosterForTenure = (tenure: TeamTenure, seasonYear?: number) => {
+    if (seasonYear !== undefined) {
+      const snapshot = dynasty.teamRosterSnapshots?.find(
+        (item) => item.teamId === tenure.teamId && item.seasonYear === seasonYear
+      );
+      if (snapshot) return snapshot.roster;
+    }
+    return rosters[tenure.teamId];
+  };
+  const roster = selectedTenure ? rosterForTenure(selectedTenure) : undefined;
   const progression = selectedTenure
     ? publishedProgression.filter((item) => item.teamId === selectedTenure.teamId)
     : [];
-  const seasonRows = selectedTenure
-    ? dynasty.seasons
-        .filter(
-          (season) =>
-            season.year >= selectedTenure.startSeasonYear &&
-            season.year <= (selectedTenure.endSeasonYear ?? season.year)
-        )
-        .map((season) => [
-          season.year.toString(),
-          season.label,
-          season.schedule.length.toString(),
-          season.standings.find((standing) => standing.teamId === selectedTenure.teamId)?.ranking?.toString() ??
-            '-',
-        ])
-    : [];
+  const seasonRowsForTenure = (tenure: TeamTenure) =>
+    dynasty.seasons
+      .filter(
+        (season) =>
+          season.year >= tenure.startSeasonYear &&
+          season.year <= (tenure.endSeasonYear ?? dynasty.currentSeasonYear - 1) &&
+          season.year < dynasty.currentSeasonYear
+      )
+      .map((season) => [
+        season.year.toString(),
+        season.label,
+        season.schedule.length.toString(),
+        season.standings.find((standing) => standing.teamId === tenure.teamId)?.ranking?.toString() ??
+          '-',
+      ]);
 
-  if (tenures.length === 0) {
+  const seasonRows = selectedTenure ? seasonRowsForTenure(selectedTenure) : [];
+  const priorSeasonRows = activeTenure ? seasonRowsForTenure(activeTenure) : [];
+  const activeRosterSnapshotYear = priorSeasonRows.at(-1)?.[0];
+  const activeHistoricalRoster = activeTenure
+    ? rosterForTenure(
+        activeTenure,
+        activeRosterSnapshotYear ? Number(activeRosterSnapshotYear) : dynasty.currentSeasonYear - 1
+      )
+    : undefined;
+
+  if (tenures.length === 0 && !activeTenure) {
     return (
       <section className="panel">
         <h3>Archive</h3>
@@ -783,17 +850,101 @@ function CoachArchivePage() {
         <div className="section-header">
           <div>
             <h3>Archive</h3>
-            <p className="muted">Historical teams and seasons remain viewable after a coach changes jobs.</p>
+            <p className="muted">
+              Historical teams and prior seasons remain viewable after rollover or a job change.
+            </p>
           </div>
-          <select value={selectedTenure?.id ?? ''} onChange={(e) => setSelectedTenureId(e.target.value)}>
-            {tenures.map((tenure) => (
-              <option key={tenure.id} value={tenure.id}>
-                {teamName(tenure.teamId, teams)} ({tenure.startSeasonYear}-{tenure.endSeasonYear ?? 'Present'})
-              </option>
-            ))}
-          </select>
+          {tenures.length > 0 && (
+            <select value={selectedTenure?.id ?? ''} onChange={(e) => setSelectedTenureId(e.target.value)}>
+              {tenures.map((tenure) => (
+                <option key={tenure.id} value={tenure.id}>
+                  {teamName(tenure.teamId, teams)} ({tenure.startSeasonYear}-{tenure.endSeasonYear ?? 'Present'})
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
+
+      <div className="panel full">
+        <h3>Dynasty Checkpoints</h3>
+        <DataTable
+          headers={['Season', 'Week', 'Type', 'Teams', 'Captured']}
+          rows={checkpoints.map((checkpoint) => [
+            checkpoint.seasonYear,
+            checkpoint.week,
+            checkpoint.type,
+            checkpoint.rosterSnapshots.length,
+            new Date(checkpoint.capturedAt).toLocaleDateString(),
+          ])}
+          empty="No weekly checkpoints published yet."
+        />
+      </div>
+
+      <div className="panel full">
+        <h3>Postseason & Titles</h3>
+        <DataTable
+          headers={['Season', 'Team', 'Kind', 'Title', 'Champion']}
+          rows={postseasonResults.map((item) => [
+            item.seasonYear,
+            teamName(item.teamId, teams),
+            item.kind,
+            item.titleLabel ?? '—',
+            item.isChampion ? 'Yes' : 'No',
+          ])}
+          empty="No postseason results published yet."
+        />
+      </div>
+
+      <div className="panel full">
+        <h3>Player Catalog</h3>
+        <DataTable
+          headers={['Player', 'Position', 'Last seen', 'Exit status']}
+          rows={playerCatalog.slice(0, 50).map((entry) => [
+            `${entry.firstName} ${entry.lastName}`,
+            entry.position,
+            entry.lastSeenSeasonYear,
+            entry.exitStatus,
+          ])}
+          empty="Player catalog populates after season checkpoints and rollover."
+        />
+      </div>
+
+      {activeTenure && priorSeasonRows.length > 0 && (
+        <>
+          <div className="panel">
+            <p className="eyebrow">Current Team — Prior Seasons</p>
+            <h3>{teamName(activeTenure.teamId, teams)}</h3>
+            <p className="muted">
+              You are still coaching this team in {dynasty.currentSeasonYear}. Completed seasons are listed
+              below.
+            </p>
+          </div>
+          <div className="panel">
+            <h3>Prior Seasons</h3>
+            <DataTable
+              headers={['Year', 'Season', 'Games', 'Rank']}
+              rows={priorSeasonRows}
+              empty="No prior season records yet."
+            />
+          </div>
+          {activeHistoricalRoster && (
+            <div className="panel">
+              <h3>Last Archived Roster</h3>
+              <DataTable
+                headers={['#', 'Player', 'POS', 'Class', 'OVR']}
+                rows={activeHistoricalRoster.players.map((player) => [
+                  player.jerseyNumber?.toString() ?? '-',
+                  `${player.firstName} ${player.lastName}`,
+                  player.position,
+                  player.classYear ?? '-',
+                  player.ratings.overall?.toString() ?? '-',
+                ])}
+              />
+            </div>
+          )}
+        </>
+      )}
 
       {selectedTenure && (
         <>
@@ -859,6 +1010,22 @@ function Metric({ label, value }: { label: string; value: string | number }) {
   );
 }
 
+function UserGamesMetric({ games, record }: { games: number; record: string }) {
+  return (
+    <div className="metric-card">
+      <span>User Games</span>
+      <div className="split-metric-value">
+        <strong>{games}</strong>
+        <strong>{record}</strong>
+      </div>
+      <div className="split-metric-labels">
+        <small>Games</small>
+        <small>Record</small>
+      </div>
+    </div>
+  );
+}
+
 function SortableHeader({
   label,
   sortKey,
@@ -874,8 +1041,10 @@ function SortableHeader({
   return (
     <th>
       <button className="sortable-header" onClick={() => onSort(sortKey)}>
-        {label}
-        {isActive && <span>{activeSort.direction === 'asc' ? '▲' : '▼'}</span>}
+        <span className="sortable-label">{label}</span>
+        <span className={isActive ? 'sort-indicator active' : 'sort-indicator'} aria-hidden={!isActive}>
+          {isActive ? (activeSort.direction === 'asc' ? '▲' : '▼') : '▲'}
+        </span>
       </button>
     </th>
   );
@@ -983,79 +1152,20 @@ function DataTable({
 }
 
 function getTeamSchedule(teamId: string, dynasty = PLACEHOLDER_DYNASTY): ScheduleGame[] {
-  const baseSchedule = dynasty.seasons.flatMap((season) => season.schedule);
-  const publishedTeamSchedule = baseSchedule
+  const currentSeason =
+    dynasty.seasons.find((season) => season.year === dynasty.currentSeasonYear) ??
+    [...dynasty.seasons].sort((a, b) => b.year - a.year)[0];
+  const publishedTeamSchedule = (currentSeason?.schedule ?? [])
     .filter((game) => game.homeTeamId === teamId || game.awayTeamId === teamId)
     .sort((a, b) => a.week - b.week);
   if (publishedTeamSchedule.length > 0) return publishedTeamSchedule;
-
-  const demoGames: ScheduleGame[] = [
-    {
-      id: 'demo-alabama-mtsu',
-      seasonId: 'season-2026',
-      week: 0,
-      homeTeamId: 'team-alabama',
-      awayTeamId: 'team-middle-tennessee',
-      homeScore: 38,
-      awayScore: 10,
-      isPlayed: true,
-    },
-    {
-      id: 'demo-georgia-clemson',
-      seasonId: 'season-2026',
-      week: 0,
-      homeTeamId: 'team-georgia',
-      awayTeamId: 'team-clemson',
-      homeScore: 31,
-      awayScore: 24,
-      isPlayed: true,
-    },
-    {
-      id: 'demo-ohio-state-akron',
-      seasonId: 'season-2026',
-      week: 0,
-      homeTeamId: 'team-ohio-state',
-      awayTeamId: 'team-akron',
-      homeScore: 45,
-      awayScore: 7,
-      isPlayed: true,
-    },
-    {
-      id: 'demo-alabama-lsu',
-      seasonId: 'season-2026',
-      week: 3,
-      homeTeamId: 'team-lsu',
-      awayTeamId: 'team-alabama',
-      isConferenceGame: true,
-      isPlayed: false,
-    },
-    {
-      id: 'demo-georgia-florida',
-      seasonId: 'season-2026',
-      week: 3,
-      homeTeamId: 'team-florida',
-      awayTeamId: 'team-georgia',
-      isConferenceGame: true,
-      isPlayed: false,
-    },
-    {
-      id: 'demo-ohio-state-michigan',
-      seasonId: 'season-2026',
-      week: 4,
-      homeTeamId: 'team-ohio-state',
-      awayTeamId: 'team-michigan',
-      isPlayed: false,
-    },
-  ];
-
-  return demoGames
-    .filter((game) => game.homeTeamId === teamId || game.awayTeamId === teamId)
-    .sort((a, b) => a.week - b.week);
+  return [];
 }
 
 function getTeamRecord(teamId: string, schedule: ScheduleGame[]): { wins: number; losses: number } {
   return schedule.reduce(
     (record, game) => {
+      if (game.isBye) return record;
       if (!game.isPlayed || game.homeScore === undefined || game.awayScore === undefined) return record;
       const isHome = game.homeTeamId === teamId;
       const teamScore = isHome ? game.homeScore : game.awayScore;
@@ -1066,6 +1176,41 @@ function getTeamRecord(teamId: string, schedule: ScheduleGame[]): { wins: number
     },
     { wins: 0, losses: 0 }
   );
+}
+
+function getConferenceRecord(
+  teamId: string,
+  schedule: ScheduleGame[],
+  teams: Team[] = PLACEHOLDER_TEAMS
+): { wins: number; losses: number } {
+  const conferenceId = teamConference(teamId, teams);
+  return schedule.reduce(
+    (record, game) => {
+      if (game.isBye) return record;
+      if (!game.isPlayed || game.homeScore === undefined || game.awayScore === undefined) return record;
+
+      const opponentId = game.homeTeamId === teamId ? game.awayTeamId : game.homeTeamId;
+      if (teamConference(opponentId, teams) !== conferenceId) return record;
+
+      const isHome = game.homeTeamId === teamId;
+      const teamScore = isHome ? game.homeScore : game.awayScore;
+      const opponentScore = isHome ? game.awayScore : game.homeScore;
+      if (teamScore > opponentScore) record.wins += 1;
+      if (teamScore < opponentScore) record.losses += 1;
+      return record;
+    },
+    { wins: 0, losses: 0 }
+  );
+}
+
+function formatGameResultForTeam(game: ScheduleGame, teamId: string): string {
+  if (game.isBye) return 'BYE';
+  if (!game.isPlayed || game.homeScore === undefined || game.awayScore === undefined) return 'Upcoming';
+  const isHome = game.homeTeamId === teamId;
+  const teamScore = isHome ? game.homeScore : game.awayScore;
+  const opponentScore = isHome ? game.awayScore : game.homeScore;
+  const result = teamScore > opponentScore ? 'W' : teamScore < opponentScore ? 'L' : 'T';
+  return `${result} ${teamScore}-${opponentScore}`;
 }
 
 function getProgressionForPlayer(
@@ -1100,7 +1245,7 @@ function getAbilityProfileForPlayer(player: Player): {
   };
 }
 
-function importantStatsForPosition(player: Player): string[] {
+function importantStatsForPosition(player: Player): Array<{ label: string; value: number }> {
   const ratings = player.ratings;
   const position = player.position.toUpperCase();
   const statSets: Record<string, Array<[string, number | undefined]>> = {
@@ -1183,7 +1328,21 @@ function importantStatsForPosition(player: Player): string[] {
     ['STR', ratings.strength],
     ['AGI', ratings.agility],
   ];
-  return stats.slice(0, 5).map(([label, value]) => `${label} ${value ?? '-'}`);
+  const availableStats = stats
+    .filter(([, value]) => value !== undefined)
+    .map(([label, value]) => ({ label, value: value! }));
+
+  if (availableStats.length > 0) return availableStats.slice(0, 5);
+
+  const fallbackStats: Array<[string, number | undefined]> = [
+    ['OVR', ratings.overall],
+    ['SPD', ratings.speed],
+    ['ACC', ratings.acceleration],
+  ];
+
+  return fallbackStats
+    .filter((stat): stat is [string, number] => stat[1] !== undefined)
+    .map(([label, value]) => ({ label, value }));
 }
 
 function positionSortValue(position: string): number {
@@ -1287,65 +1446,44 @@ function normalizePosition(position: string): string {
   return position.toUpperCase().replaceAll('-', '_');
 }
 
-function nextGameLabel(
-  teamId: string,
-  schedule: ScheduleGame[],
-  teams: Team[] = PLACEHOLDER_TEAMS
-): string {
-  const next = schedule.find((game) => !game.isPlayed);
-  if (!next) return 'Season complete';
-  const opponentId = next.homeTeamId === teamId ? next.awayTeamId : next.homeTeamId;
-  return `W${next.week} ${teamName(opponentId, teams)}`;
-}
-
-function isUpcomingUserGame(
+function isUserGameForTeam(
   game: ScheduleGame,
   teamId: string,
   activeUserTeamIds: Set<string>
 ): boolean {
-  if (game.isPlayed) return false;
+  if (game.isBye) return false;
   const opponentId = game.homeTeamId === teamId ? game.awayTeamId : game.homeTeamId;
-  return activeUserTeamIds.has(teamId) && activeUserTeamIds.has(opponentId);
+  return opponentId !== teamId && activeUserTeamIds.has(teamId) && activeUserTeamIds.has(opponentId);
 }
 
-function activeCoachForTeam(teamId: string, tenuresByUser: Record<string, TeamTenure[]>): string {
+function activeCoachForTeam(
+  teamId: string,
+  tenuresByUser: Record<string, TeamTenure[]>,
+  users: AppUser[]
+): string {
   const userId = Object.entries(tenuresByUser).find(([, tenures]) =>
     tenures.some((tenure) => tenure.status === 'active' && tenure.teamId === teamId)
   )?.[0];
-  return userId ? userName(userId) : 'CPU';
+  return userId ? userName(userId, users) : 'CPU';
 }
 
-function getCurrentTop25(teams: Team[] = PLACEHOLDER_TEAMS): Team[] {
-  const rankedTeamIds = [
-    'team-georgia',
-    'team-ohio-state',
-    'team-alabama',
-    'team-oregon',
-    'team-texas',
-    'team-notre-dame',
-    'team-michigan',
-    'team-lsu',
-    'team-clemson',
-    'team-penn-state',
-    'team-tennessee',
-    'team-florida-state',
-    'team-ole-miss',
-    'team-utah',
-    'team-oklahoma',
-    'team-texas-aandm',
-    'team-usc',
-    'team-miami',
-    'team-kansas-state',
-    'team-boise-state',
-    'team-louisville',
-    'team-iowa',
-    'team-arizona',
-    'team-nc-state',
-    'team-wisconsin',
-  ];
-  return rankedTeamIds
-    .map((teamId) => teams.find((team) => team.id === teamId))
-    .filter((team): team is Team => Boolean(team));
+function getCurrentTop25(
+  teams: Team[] = PLACEHOLDER_TEAMS,
+  dynasty = PLACEHOLDER_DYNASTY
+): Array<{ rank: number; team: Team; wins: number; losses: number }> {
+  const snapshot = [...(dynasty.rankings ?? [])]
+    .filter((item) => item.pollType === 'top25')
+    .sort((a, b) => b.capturedAt.localeCompare(a.capturedAt))[0];
+  if (snapshot) {
+    return snapshot.entries
+      .map((entry) => {
+        const team = teams.find((item) => item.id === entry.teamId);
+        return team ? { rank: entry.rank, team, wins: entry.wins, losses: entry.losses } : null;
+      })
+      .filter((row): row is { rank: number; team: Team; wins: number; losses: number } => Boolean(row))
+      .sort((a, b) => a.rank - b.rank);
+  }
+  return [];
 }
 
 function teamConference(teamId: string, teams: Team[] = PLACEHOLDER_TEAMS): string {
@@ -1361,7 +1499,7 @@ function conferenceName(conferenceId: string): string {
   return conference?.abbreviation ?? conference?.name ?? conferenceId;
 }
 
-function userName(userId: string): string {
-  return listDemoUsers().find((user) => user.id === userId)?.displayName ?? userId;
+function userName(userId: string, users: AppUser[] = listDemoUsers()): string {
+  return users.find((user) => user.id === userId)?.displayName ?? userId;
 }
 

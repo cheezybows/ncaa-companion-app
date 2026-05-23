@@ -18,10 +18,14 @@ export function signInAsUserId(userId: string): AuthSession | null {
   const user = DEMO_USERS.find((u) => u.id === userId);
   if (!user) return null;
   const session = buildSession(user);
+  saveSession(session);
+  return session;
+}
+
+export function saveSession(session: AuthSession): void {
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   }
-  return session;
 }
 
 export function loadSession(): AuthSession | null {
@@ -32,7 +36,7 @@ export function loadSession(): AuthSession | null {
     const parsed = JSON.parse(raw) as AuthSession;
     const user = DEMO_USERS.find((u) => u.id === parsed.user.id);
     if (!user) return null;
-    return buildSession(user, parsed.dynastyId);
+    return parsed;
   } catch {
     return null;
   }

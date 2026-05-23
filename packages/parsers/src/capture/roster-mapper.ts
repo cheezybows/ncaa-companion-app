@@ -1,5 +1,11 @@
 import type { Player, PlayerAbility, PlayerRatings, Roster, Team } from '@ncaa/domain';
-import type { ExtractedRosterTableRow, RosterCaptureFixture } from './types.js';
+import type {
+  CaptureImportWarning,
+  ExtractedRosterTableRow,
+  RosterCaptureExpected,
+  RosterCaptureFixture,
+} from './types.js';
+import { teamIdFromKey } from './team-resolver.js';
 
 export interface RosterCaptureImport {
   team: Team;
@@ -7,6 +13,11 @@ export interface RosterCaptureImport {
   fixtureId: string;
   partial: boolean;
   sourceLabel: string;
+  warnings?: CaptureImportWarning[];
+}
+
+export interface RosterCaptureImportOptions {
+  team?: Team;
 }
 
 function parseDisplayName(displayName: string): { firstName: string; lastName: string } {
@@ -26,20 +37,8 @@ function parseDisplayName(displayName: string): { firstName: string; lastName: s
 }
 
 function toPlayerRatings(ratings: ExtractedRosterTableRow['ratings']): PlayerRatings {
-  const mapped: PlayerRatings = {
-    overall: ratings.overall,
-    speed: ratings.speed,
-    acceleration: ratings.acceleration,
-    agility: ratings.agility,
-    changeOfDirection: ratings.changeOfDirection,
-    strength: ratings.strength,
-    awareness: ratings.awareness,
-    playRecognition: ratings.playRecognition,
-    manCoverage: ratings.manCoverage,
-  };
-
   return Object.fromEntries(
-    Object.entries(mapped).filter(([, value]) => value != null)
+    Object.entries(ratings).filter(([, value]) => value != null)
   ) as PlayerRatings;
 }
 
@@ -61,13 +60,14 @@ function rowToPlayer(
   row: ExtractedRosterTableRow,
   detail?: RosterCaptureFixture['expected']['detailPanel']
 ): Player {
-  const detailPanel = row.focused ? detail : undefined;
+  const hasDetailIdentity = Boolean(detail?.firstName || detail?.lastName || detail?.displayName);
+  const detailPanel = row.focused && hasDetailIdentity ? detail : undefined;
   const parsed = detailPanel
     ? { firstName: detailPanel.firstName, lastName: detailPanel.lastName }
     : parseDisplayName(row.displayName);
 
   const ratings = detailPanel
-    ? { ...toPlayerRatings(row.ratings), ...toPlayerRatings(detailPanel.ratings) }
+    ? { ...toPlayerRatings(detailPanel.ratings), ...toPlayerRatings(row.ratings) }
     : toPlayerRatings(row.ratings);
 
   return {
@@ -75,7 +75,7 @@ function rowToPlayer(
     teamId,
     firstName: parsed.firstName,
     lastName: parsed.lastName,
-    position: row.position,
+    position: detailPanel?.position ?? row.position,
     jerseyNumber: detailPanel?.jerseyNumber,
     classYear: detailPanel?.classYear ?? row.classYear,
     heightInches: detailPanel?.heightInches,
@@ -88,22 +88,73 @@ function rowToPlayer(
   };
 }
 
-export function rosterCaptureFixtureToImport(fixture: RosterCaptureFixture): RosterCaptureImport {
-  const { expected, meta } = fixture;
-  const teamId = `team-${expected.teamContext.teamKey}`;
+function teamAbbreviation(teamKey: string, name: string): string {
+  if (teamKey === 'iowa') return 'IOWA';
+  if (teamKey === 'oregon-state') return 'ORST';
+  return name
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 4)
+    .toUpperCase();
+}
 
-  const team: Team = {
+function teamColors(teamKey: string): { primaryColor: string; secondaryColor: string } {
+  if (teamKey === 'iowa') return { primaryColor: '#FFCD00', secondaryColor: '#000000' };
+  if (teamKey === 'oregon-state') return { primaryColor: '#D73F09', secondaryColor: '#000000' };
+  return { primaryColor: '#1d4ed8', secondaryColor: '#f8fafc' };
+}
+
+export function mergeRosterCaptureExpected(
+  fixtures: RosterCaptureExpected[]
+): RosterCaptureExpected {
+  const [first] = fixtures;
+  if (!first) throw new Error('At least one roster capture expected payload is required.');
+
+  const rows = fixtures.flatMap((fixture) => fixture.table.rows);
+  const deduped = new Map<string, (typeof rows)[number]>();
+  for (const row of rows) {
+    const key = `${row.position}:${row.displayName}`;
+    deduped.set(key, row);
+  }
+
+  return {
+    ...first,
+    partial: fixtures.some((fixture) => fixture.partial),
+    table: {
+      focusedRowIndex: first.table.focusedRowIndex,
+      rows: [...deduped.values()].map((row, index) => ({ ...row, index })),
+    },
+  };
+}
+
+function teamFromFixture(fixture: RosterCaptureFixture): Team {
+  const { expected, meta } = fixture;
+  const teamKey = expected.teamContext?.teamKey ?? meta.navigation.selectedTeam.toLowerCase().replace(/\s+/g, '-');
+  const teamId = teamIdFromKey(teamKey);
+  const colors = teamColors(teamKey);
+
+  return {
     id: teamId,
-    name: expected.teamContext.name,
-    abbreviation: 'ORST',
+    name: expected.teamContext?.name ?? meta.teamContext.name,
+    abbreviation: teamAbbreviation(teamKey, expected.teamContext?.name ?? meta.teamContext.name),
     conferenceId: meta.teamContext.conference?.toLowerCase().replace(/\s+/g, '-') ?? 'big-ten',
     overallRating: meta.teamContext.overallRating,
     offensiveRating: meta.teamContext.offensiveRating,
     defensiveRating: meta.teamContext.defensiveRating,
     ranking: meta.teamContext.rank,
-    primaryColor: '#D73F09',
-    secondaryColor: '#000000',
+    primaryColor: colors.primaryColor,
+    secondaryColor: colors.secondaryColor,
   };
+}
+
+export function rosterCaptureFixtureToImport(
+  fixture: RosterCaptureFixture,
+  options: RosterCaptureImportOptions = {}
+): RosterCaptureImport {
+  const { expected } = fixture;
+  const team = options.team ?? teamFromFixture(fixture);
+  const teamId = team.id;
 
   const players = expected.table.rows.map((row) =>
     rowToPlayer(teamId, row, expected.detailPanel)
@@ -121,6 +172,6 @@ export function rosterCaptureFixtureToImport(fixture: RosterCaptureFixture): Ros
     roster,
     fixtureId: expected.fixtureId,
     partial: expected.partial,
-    sourceLabel: `${expected.teamContext.selectedPosition} screenshot fixture`,
+    sourceLabel: `${expected.teamContext?.selectedPosition ?? fixture.meta.navigation.selectedPosition} screenshot fixture`,
   };
 }

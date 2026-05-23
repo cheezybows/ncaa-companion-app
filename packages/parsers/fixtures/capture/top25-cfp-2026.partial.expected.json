@@ -1,0 +1,11 @@
+{
+  "fixtureId": "top25-cfp-2026-partial",
+  "screenKind": "top25_rankings",
+  "partial": false,
+  "seasonYear": 2026,
+  "pollType": "top25",
+  "entries": [
+    { "rank": 1, "teamKey": "virginia-tech", "teamName": "Virginia Tech", "wins": 13, "losses": 0 },
+    { "rank": 2, "teamKey": "oregon", "teamName": "Oregon", "wins": 12, "losses": 2 }
+  ]
+}

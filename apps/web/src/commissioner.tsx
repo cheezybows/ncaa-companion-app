@@ -1,10 +1,89 @@
-import { useEffect, useMemo, useState } from 'react';
-import { PLACEHOLDER_CONFERENCES, PLACEHOLDER_DYNASTY, PLACEHOLDER_TEAMS } from '@ncaa/domain';
-import type { AppUser, Team, TeamTenure } from '@ncaa/domain';
+import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
+import {
+  PLACEHOLDER_CONFERENCES,
+  PLACEHOLDER_DYNASTY,
+  PLACEHOLDER_ROSTERS,
+  PLACEHOLDER_TEAMS,
+} from '@ncaa/domain';
+import type {
+  AppUser,
+  DynastyArchiveSummary,
+  PostseasonResult,
+  RankingEntry,
+  Roster,
+  ScheduleGame,
+  SeasonAdvanceAction,
+  SeasonAdvanceAssignmentInput,
+  SeasonAdvancePreview,
+  Team,
+  TeamTenure,
+  WeekAdvancePreview,
+} from '@ncaa/domain';
 import { getCompanionApi } from './api';
 import type { CommissionerConfig, PublishResult, RosterImportRecord } from './api';
 
 const api = getCompanionApi();
+
+type Top25DraftRow = {
+  rank: number;
+  teamId: string;
+  wins: number;
+  losses: number;
+};
+
+type ScheduleDraftRow = {
+  id: string;
+  week: number;
+  site: 'home' | 'away' | 'bye';
+  opponentTeamId: string;
+  isBye?: boolean;
+  isPlayed: boolean;
+  teamScore: number;
+  opponentScore: number;
+  isConferenceGame?: boolean;
+};
+
+type RosterDraftRow = {
+  id: string;
+  jerseyNumber?: number;
+  firstName: string;
+  lastName: string;
+  position: string;
+  overall?: number;
+};
+
+const TRADITIONAL_BOWL_GAMES = [
+  'Alamo Bowl',
+  'Boca Raton Bowl',
+  'Camellia Bowl',
+  'Cheez-It Citrus Bowl',
+  'Cure Bowl',
+  "Duke's Mayo Bowl",
+  'Fenway Bowl',
+  'Frisco Bowl',
+  'GameAbove Sports Bowl',
+  'Gasparilla Bowl',
+  'Gator Bowl',
+  'Hawaii Bowl',
+  'Holiday Bowl',
+  'Independence Bowl',
+  'LA Bowl',
+  'Las Vegas Bowl',
+  'LendingTree Bowl',
+  'Liberty Bowl',
+  'Military Bowl',
+  'Music City Bowl',
+  'Pop-Tarts Bowl',
+  'Rate Bowl',
+  'ReliaQuest Bowl',
+  'Texas Bowl',
+] as const;
+
+type BowlWinDraftRow = {
+  id: string;
+  bowlName: string;
+  teamId: string;
+};
 
 export function CommissionerOverviewPage() {
   const [config, setConfig] = useState<CommissionerConfig | null>(null);
@@ -13,6 +92,9 @@ export function CommissionerOverviewPage() {
   const [imports, setImports] = useState<RosterImportRecord[]>([]);
   const [scheduleImports, setScheduleImports] = useState<
     Awaited<ReturnType<NonNullable<typeof api.listScheduleImports>>>
+  >([]);
+  const [top25Imports, setTop25Imports] = useState<
+    Awaited<ReturnType<NonNullable<typeof api.listTop25Imports>>>
   >([]);
   const [scheduleImportCount, setScheduleImportCount] = useState(0);
   const [historyCount, setHistoryCount] = useState(0);
@@ -23,17 +105,19 @@ export function CommissionerOverviewPage() {
       if (!api.getCommissionerConfig) return;
       const nextConfig = await api.getCommissionerConfig();
       setConfig(nextConfig);
-      const [nextUsers, nextTenures, nextImports, nextScheduleImports, history] = await Promise.all([
+      const [nextUsers, nextTenures, nextImports, nextScheduleImports, nextTop25Imports, history] = await Promise.all([
         api.listUsers?.() ?? [],
         api.listCommissionerTenures?.(nextConfig.dynastyId) ?? [],
         api.listRosterImports?.(nextConfig.dynastyId) ?? [],
         api.listScheduleImports?.() ?? [],
+        api.listTop25Imports?.() ?? [],
         api.listPublishHistory?.(nextConfig.dynastyId) ?? [],
       ]);
       setUsers(nextUsers);
       setTenures(nextTenures);
       setImports(nextImports);
       setScheduleImports(nextScheduleImports);
+      setTop25Imports(nextTop25Imports);
       setScheduleImportCount(nextScheduleImports.length);
       setHistoryCount(history.length);
     })();
@@ -97,15 +181,15 @@ export function CommissionerOverviewPage() {
         name: userById.get(tenure.userId)?.displayName ?? tenure.userId,
       };
     };
-    const rankedTeams = [...(currentSeason?.standings ?? [])]
-      .filter((standing) => standing.ranking !== undefined)
-      .sort((a, b) => (a.ranking ?? 999) - (b.ranking ?? 999))
-      .slice(0, 3)
-      .map((standing) => ({
-        rank: standing.ranking,
-        teamName: teamById.get(standing.teamId)?.name ?? standing.teamId,
-        record: `${standing.wins}-${standing.losses}`,
-      }));
+    const latestTop25 = [...top25Imports]
+      .sort((a, b) => b.rankings.capturedAt.localeCompare(a.rankings.capturedAt))[0];
+    const rankedTeams = latestTop25
+      ? latestTop25.rankings.entries.slice(0, 3).map((entry) => ({
+          rank: entry.rank,
+          teamName: teamById.get(entry.teamId)?.name ?? entry.teamName,
+          record: `${entry.wins}-${entry.losses}`,
+        }))
+      : [];
     const allSeasons = [
       ...PLACEHOLDER_DYNASTY.seasons,
       ...scheduleImports.map((item) => item.season),
@@ -142,7 +226,7 @@ export function CommissionerOverviewPage() {
       pastChampion,
       bestRecord,
     };
-  }, [scheduleImports, tenures, users]);
+  }, [scheduleImports, tenures, top25Imports, users]);
 
   if (!api.getCommissionerConfig) {
     return (
@@ -774,6 +858,546 @@ function ConferenceEditorScreen({
   );
 }
 
+export function CommissionerAdvanceSeasonPage() {
+  const [preview, setPreview] = useState<SeasonAdvancePreview | null>(null);
+  const [assignments, setAssignments] = useState<SeasonAdvanceAssignmentInput[]>([]);
+  const [teams, setTeams] = useState<Team[]>(PLACEHOLDER_TEAMS);
+  const [postseasonResults, setPostseasonResults] = useState<PostseasonResult[]>([]);
+  const [nationalChampionTeamId, setNationalChampionTeamId] = useState('');
+  const [bowlWins, setBowlWins] = useState<BowlWinDraftRow[]>([
+    { id: crypto.randomUUID(), bowlName: '', teamId: '' },
+  ]);
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [publishAfter, setPublishAfter] = useState(true);
+
+  async function refreshPreview(nextAssignments?: SeasonAdvanceAssignmentInput[]) {
+    if (!api.previewSeasonAdvance) return;
+    const nextPreview = await api.previewSeasonAdvance(nextAssignments ?? assignments);
+    setPreview(nextPreview);
+    if (api.listPostseasonResults) {
+      const nextPostseasonResults = await api.listPostseasonResults(nextPreview.currentSeasonYear);
+      setPostseasonResults(nextPostseasonResults);
+      setNationalChampionTeamId(
+        nextPostseasonResults.find((item) => item.kind === 'national_championship' && item.isChampion)
+          ?.teamId ?? ''
+      );
+      const nextBowlWins = nextPostseasonResults
+        .filter((item) => item.kind === 'bowl')
+        .map((item) => ({
+          id: item.id,
+          bowlName: item.titleLabel ?? '',
+          teamId: item.teamId,
+        }));
+      setBowlWins(
+        nextBowlWins.length > 0
+          ? nextBowlWins
+          : [{ id: crypto.randomUUID(), bowlName: '', teamId: '' }]
+      );
+    }
+    if (!nextAssignments) {
+      setAssignments(nextPreview.assignments);
+    }
+  }
+
+  useEffect(() => {
+    void (async () => {
+      if (!api.previewSeasonAdvance) return;
+      const nextTeams = (await api.listTeams?.()) ?? PLACEHOLDER_TEAMS;
+      setTeams(nextTeams);
+      await refreshPreview();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function updateAssignment(
+    tenureId: string,
+    patch: Partial<Pick<SeasonAdvanceAssignmentInput, 'action' | 'nextTeamId'>>
+  ) {
+    const nextAssignments = assignments.map((assignment) =>
+      assignment.tenureId === tenureId ? { ...assignment, ...patch } : assignment
+    );
+    setAssignments(nextAssignments);
+    void refreshPreview(nextAssignments);
+  }
+
+  async function confirmAdvance() {
+    if (!api.advanceToNextSeason || !preview) return;
+    if (preview.validationErrors.length > 0) {
+      setMessage(preview.validationErrors.join(' '));
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    try {
+      const result = await api.advanceToNextSeason(assignments);
+      if (publishAfter && api.publishToHosted) {
+        const published = await api.publishToHosted();
+        setMessage(
+          `Advanced to ${result.currentSeasonYear}. Archived ${result.previousSeasonYear} (${result.archivedSeason.schedule.length} games). Carried ${result.rostersCarriedForward} rosters. Published batch ${published.batchId}.`
+        );
+      } else {
+        setMessage(
+          `Advanced to ${result.currentSeasonYear}. Archived ${result.previousSeasonYear}. Carried ${result.rostersCarriedForward} rosters. Publish when ready.`
+        );
+      }
+      await refreshPreview();
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function savePostseasonArchive() {
+    if (!api.savePostseasonResult || !preview) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      if (api.deletePostseasonResult) {
+        for (const result of postseasonResults) {
+          await api.deletePostseasonResult(result.id);
+        }
+      }
+
+      if (nationalChampionTeamId) {
+        await api.savePostseasonResult({
+          seasonYear: preview.currentSeasonYear,
+          teamId: nationalChampionTeamId,
+          kind: 'national_championship',
+          titleLabel: 'National Champion',
+          isChampion: true,
+        });
+      }
+
+      for (const bowl of bowlWins) {
+        if (!bowl.teamId || !bowl.bowlName) continue;
+        await api.savePostseasonResult({
+          seasonYear: preview.currentSeasonYear,
+          teamId: bowl.teamId,
+          kind: 'bowl',
+          titleLabel: bowl.bowlName,
+          isChampion: true,
+        });
+      }
+
+      setMessage('Postseason archive saved for season advance.');
+      await refreshPreview();
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deletePostseasonResult(id: string) {
+    if (!api.deletePostseasonResult) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      await api.deletePostseasonResult(id);
+      setMessage('Postseason result removed.');
+      await refreshPreview();
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!api.previewSeasonAdvance || !api.advanceToNextSeason) {
+    return (
+      <section className="panel">
+        <p className="muted">Season advance is available in the Electron desktop app.</p>
+      </section>
+    );
+  }
+
+  const teamOptions = [...teams].sort((a, b) => a.name.localeCompare(b.name));
+  const userTeamIds = new Set(assignments.map((assignment) => assignment.currentTeamId));
+  const userTeamOptions = teamOptions.filter((team) => userTeamIds.has(team.id));
+
+  function updateBowlWin(id: string, patch: Partial<BowlWinDraftRow>) {
+    setBowlWins((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  }
+
+  function addBowlWin() {
+    setBowlWins((current) => [
+      ...current,
+      { id: crypto.randomUUID(), bowlName: '', teamId: '' },
+    ]);
+  }
+
+  function removeBowlWin(id: string) {
+    setBowlWins((current) =>
+      current.length === 1
+        ? [{ id: crypto.randomUUID(), bowlName: '', teamId: '' }]
+        : current.filter((row) => row.id !== id)
+    );
+  }
+
+  return (
+    <section className="grid two advance-season-page">
+      <article className="panel full">
+        <h3>Advance to Next Season</h3>
+        <p className="muted">
+          Review each active coach, choose stay, leave, or change teams, then archive{' '}
+          {preview?.currentSeasonYear ?? '—'} and open season {preview?.nextSeasonYear ?? '—'} with
+          carried-forward rosters until fresh imports replace them.
+        </p>
+        {message && <div className="notice">{message}</div>}
+        {preview && preview.validationErrors.length > 0 && (
+          <div className="notice error">{preview.validationErrors.join(' ')}</div>
+        )}
+      </article>
+
+      <article className="panel full">
+        <DataTable
+          headers={['Coach', 'Current Team', 'Decision', 'Next Team']}
+          rows={assignments.map((assignment) => [
+            assignment.coachName,
+            assignment.currentTeamName,
+            <select
+              key={`${assignment.tenureId}-action`}
+              value={assignment.action}
+              onChange={(event) =>
+                updateAssignment(assignment.tenureId, {
+                  action: event.target.value as SeasonAdvanceAction,
+                  nextTeamId:
+                    event.target.value === 'change' ? assignment.nextTeamId : undefined,
+                })
+              }
+            >
+              <option value="stay">Stay</option>
+              <option value="leave">Leave Team</option>
+              <option value="change">Change Team</option>
+            </select>,
+            assignment.action === 'change' ? (
+              <SearchableTeamSelect
+                key={`${assignment.tenureId}-team`}
+                id={`season-advance-next-team-${assignment.tenureId}`}
+                teams={teamOptions.filter((team) => team.id !== assignment.currentTeamId)}
+                value={assignment.nextTeamId ?? ''}
+                onChange={(teamId) =>
+                  updateAssignment(assignment.tenureId, { nextTeamId: teamId || undefined })
+                }
+                placeholder="Search next team..."
+              />
+            ) : (
+              '—'
+            ),
+          ])}
+          empty="No active coach assignments to review."
+        />
+      </article>
+
+      <article className="panel full postseason-panel">
+        <h3>Postseason Archive</h3>
+        <p className="muted">
+          Upload conference championship results when capture support is ready, record user bowl wins, and set the national champion before advancing the season.
+        </p>
+        <h4>Conference Championships</h4>
+        <div className="notice compact-notice">
+          Conference champion screenshot upload is coming next. Those games will be added to the season schedule so coaches can see them alongside the rest of the year.
+        </div>
+        <button className="secondary" disabled>
+          Upload conference championship screenshot
+        </button>
+
+        <div className="grid two compact-grid">
+          <label className="stacked-field">
+            <span>National champion</span>
+            <SearchableTeamSelect
+              id="national-champion-team"
+              teams={teamOptions}
+              value={nationalChampionTeamId}
+              onChange={setNationalChampionTeamId}
+              placeholder="Search national champion..."
+            />
+          </label>
+        </div>
+
+        <h4>Bowl Wins</h4>
+        <p className="muted">Only user-controlled teams are tracked here. CPU-only bowl games are ignored for now.</p>
+        <div className="editable-table">
+          <div className="editable-row editable-row-header bowl-win-row">
+            <span>Game</span>
+            <span>Winning Team</span>
+            <span></span>
+          </div>
+          {bowlWins.map((row) => (
+            <div key={row.id} className="editable-row bowl-win-row">
+              <SearchableTextSelect
+                id={`bowl-game-${row.id}`}
+                options={[...TRADITIONAL_BOWL_GAMES]}
+                value={row.bowlName}
+                onChange={(bowlName) => updateBowlWin(row.id, { bowlName })}
+                placeholder="Search bowl game..."
+              />
+              <SearchableTeamSelect
+                id={`bowl-winner-${row.id}`}
+                teams={userTeamOptions}
+                value={row.teamId}
+                onChange={(teamId) => updateBowlWin(row.id, { teamId })}
+                placeholder="Search user team..."
+              />
+              <button className="secondary" onClick={() => removeBowlWin(row.id)}>
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="postseason-actions">
+          <button className="secondary" onClick={addBowlWin}>
+            Add bowl win
+          </button>
+          <button className="secondary" onClick={() => void savePostseasonArchive()} disabled={busy}>
+            Save postseason archive
+          </button>
+        </div>
+        <DataTable
+          headers={['Type', 'Team / Details', 'Title', '']}
+          rows={postseasonResults.map((item) => [
+            item.kind,
+            item.kind === 'bowl'
+              ? teamOptions.find((team) => team.id === item.teamId)?.name ?? item.teamId
+              : teamOptions.find((team) => team.id === item.teamId)?.name ?? item.teamId,
+            item.titleLabel ?? '—',
+            api.deletePostseasonResult ? (
+              <button className="secondary" onClick={() => void deletePostseasonResult(item.id)}>
+                Delete
+              </button>
+            ) : null,
+          ])}
+          empty="No postseason results saved for this season yet."
+        />
+      </article>
+
+      <article className="panel">
+        <h3>Confirm</h3>
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            checked={publishAfter}
+            onChange={(event) => setPublishAfter(event.target.checked)}
+          />
+          Publish to hosted immediately after rollover
+        </label>
+        <button onClick={() => void confirmAdvance()} disabled={busy || !preview}>
+          {busy ? 'Advancing…' : `Advance to ${preview?.nextSeasonYear ?? 'next season'}`}
+        </button>
+      </article>
+      {preview && (
+        <p className="advance-season-footnote">
+          Archive preview: {preview.currentSeasonYear} closes with {preview.archivedSeason.schedule.length}{' '}
+          games and {preview.teamRosterSnapshots.length} roster snapshots. {preview.nextSeasonYear} opens with an empty schedule until import.
+        </p>
+      )}
+    </section>
+  );
+}
+
+export function CommissionerArchivePage() {
+  const [summary, setSummary] = useState<DynastyArchiveSummary | null>(null);
+  const [weekPreview, setWeekPreview] = useState<WeekAdvancePreview | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function refresh() {
+    if (!api.getDynastyArchiveSummary) return;
+    const [nextSummary, nextWeekPreview] = await Promise.all([
+      api.getDynastyArchiveSummary(),
+      api.previewWeekAdvance?.() ?? null,
+    ]);
+    setSummary(nextSummary);
+    setWeekPreview(nextWeekPreview);
+  }
+
+  useEffect(() => {
+    void refresh();
+  }, []);
+
+  async function advanceWeek() {
+    if (!api.advanceToNextWeek) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const result = await api.advanceToNextWeek();
+      setMessage(
+        `Checkpoint saved for ${result.seasonYear} week ${result.week} (${result.rosterSnapshots} roster snapshots, ${result.progressionSnapshots} progression entries).`
+      );
+      await refresh();
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function updateCatalogExit(
+    playerId: string,
+    exitStatus: 'graduated' | 'transferred' | 'active' | 'unknown'
+  ) {
+    if (!api.updatePlayerCatalogEntry || !summary) return;
+    setBusy(true);
+    try {
+      await api.updatePlayerCatalogEntry({
+        playerId,
+        exitStatus,
+        correctionReason: 'Commissioner manual correction',
+      });
+      setMessage(`Updated ${playerId} exit status to ${exitStatus}.`);
+      await refresh();
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!api.getDynastyArchiveSummary) {
+    return (
+      <section className="panel">
+        <p className="muted">Advance Week is available in the Electron desktop app.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="grid two">
+      <article className="panel full">
+        <h3>Advance Week</h3>
+        <p className="muted">
+          Lock the current imports into a weekly checkpoint and review the archive data built from those checkpoints.
+        </p>
+        {message && <div className="notice">{message}</div>}
+        {summary && (
+          <dl className="meta-list">
+            <div>
+              <dt>Current season</dt>
+              <dd>
+                {summary.currentSeasonYear}
+                {summary.currentWeek !== null ? ` · week ${summary.currentWeek}` : ' · no checkpoints yet'}
+              </dd>
+            </div>
+            <div>
+              <dt>Checkpoints</dt>
+              <dd>{summary.checkpointCount}</dd>
+            </div>
+            <div>
+              <dt>Archived seasons</dt>
+              <dd>{summary.archivedSeasonCount}</dd>
+            </div>
+            <div>
+              <dt>Player catalog</dt>
+              <dd>{summary.playerCatalogCount}</dd>
+            </div>
+            <div>
+              <dt>Postseason results</dt>
+              <dd>{summary.postseasonResultCount}</dd>
+            </div>
+          </dl>
+        )}
+      </article>
+
+      <article className="panel full">
+        <h3>Advance Week</h3>
+        {weekPreview && (
+          <dl className="meta-list">
+            <div>
+              <dt>Next checkpoint</dt>
+              <dd>
+                {weekPreview.currentSeasonYear} week {weekPreview.nextWeek}
+              </dd>
+            </div>
+            <div>
+              <dt>Rosters</dt>
+              <dd>
+                {weekPreview.teamCount} teams · {weekPreview.rosterPlayerCount} players
+              </dd>
+            </div>
+            <div>
+              <dt>Schedule games</dt>
+              <dd>{weekPreview.scheduleGameCount}</dd>
+            </div>
+            <div>
+              <dt>Top 25 attached</dt>
+              <dd>{weekPreview.hasTop25 ? 'Yes' : 'No'}</dd>
+            </div>
+          </dl>
+        )}
+        <button onClick={() => void advanceWeek()} disabled={busy || !api.advanceToNextWeek}>
+          {busy ? 'Saving checkpoint…' : 'Advance Week'}
+        </button>
+      </article>
+
+      {summary && (
+        <>
+          <article className="panel full">
+            <h3>Checkpoints</h3>
+            <DataTable
+              headers={['Season', 'Week', 'Type', 'Teams', 'Captured', 'Notes']}
+              rows={summary.checkpoints.map((checkpoint) => [
+                checkpoint.seasonYear,
+                checkpoint.week,
+                checkpoint.type,
+                checkpoint.rosterSnapshots.length,
+                new Date(checkpoint.capturedAt).toLocaleString(),
+                checkpoint.notes ?? '—',
+              ])}
+              empty="No checkpoints yet. Use Advance Week after importing rosters."
+            />
+          </article>
+
+          <article className="panel full">
+            <h3>Player Catalog</h3>
+            <DataTable
+              headers={['Player', 'Position', 'Last seen', 'Exit', 'Actions']}
+              rows={summary.playerCatalog.slice(0, 100).map((entry) => [
+                `${entry.firstName} ${entry.lastName}`,
+                entry.position,
+                entry.lastSeenSeasonYear,
+                entry.exitStatus,
+                api.updatePlayerCatalogEntry ? (
+                  <div className="actions compact-actions">
+                    <button
+                      className="secondary"
+                      onClick={() => void updateCatalogExit(entry.playerId, 'graduated')}
+                    >
+                      Graduate
+                    </button>
+                    <button
+                      className="secondary"
+                      onClick={() => void updateCatalogExit(entry.playerId, 'transferred')}
+                    >
+                      Transfer
+                    </button>
+                  </div>
+                ) : null,
+              ])}
+              empty="Player catalog fills in as checkpoints are created."
+            />
+          </article>
+
+          <article className="panel full">
+            <h3>Coach Team History</h3>
+            <DataTable
+              headers={['Coach', 'Team', 'Seasons', 'Checkpoints']}
+              rows={summary.coachArchiveBuckets.map((bucket) => [
+                bucket.coachName,
+                bucket.teamName,
+                bucket.seasonYears.join(', ') || '—',
+                bucket.checkpointIds.length,
+              ])}
+              empty="Coach archive buckets appear after checkpoints and tenure history exist."
+            />
+          </article>
+        </>
+      )}
+    </section>
+  );
+}
+
 export function CommissionerPublishPage() {
   const [config, setConfig] = useState<CommissionerConfig | null>(null);
   const [result, setResult] = useState<PublishResult | null>(null);
@@ -834,24 +1458,43 @@ export function CommissionerTeamImportsPage() {
   const [scheduleImports, setScheduleImports] = useState<
     Awaited<ReturnType<NonNullable<typeof api.listScheduleImports>>>
   >([]);
+  const [top25Imports, setTop25Imports] = useState<
+    Awaited<ReturnType<NonNullable<typeof api.listTop25Imports>>>
+  >([]);
   const [selectedTenureId, setSelectedTenureId] = useState('');
+  const [showTop25, setShowTop25] = useState(false);
+  const [showAllRoster, setShowAllRoster] = useState(false);
+  const [top25Draft, setTop25Draft] = useState<Top25DraftRow[]>([]);
+  const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraftRow[]>([]);
+  const [rosterDraft, setRosterDraft] = useState<RosterDraftRow[]>([]);
+  const [editingTop25Index, setEditingTop25Index] = useState<number | null>(null);
+  const [editingScheduleIndex, setEditingScheduleIndex] = useState<number | null>(null);
+  const [editingRosterId, setEditingRosterId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [busyKind, setBusyKind] = useState<'roster' | 'schedule' | null>(null);
+  const [busyKind, setBusyKind] = useState<'roster' | 'schedule' | 'top25' | null>(null);
+  const [savingKind, setSavingKind] = useState<'roster' | 'schedule' | 'top25' | null>(null);
+  const [weekPreview, setWeekPreview] = useState<WeekAdvancePreview | null>(null);
+  const [weekBusy, setWeekBusy] = useState(false);
 
   async function refresh() {
     const nextConfig = config ?? (await api.getCommissionerConfig?.()) ?? null;
     if (!nextConfig) return;
     setConfig(nextConfig);
-    const [nextCoaches, nextTenures, nextRosters, nextSchedules] = await Promise.all([
+    const [nextCoaches, nextTenures, nextRosters, nextSchedules, nextTop25Imports, nextWeekPreview] =
+      await Promise.all([
       api.listCoaches?.() ?? [],
       api.listCommissionerTenures?.(nextConfig.dynastyId) ?? [],
       api.listRosterImports?.(nextConfig.dynastyId) ?? [],
       api.listScheduleImports?.() ?? [],
+      api.listTop25Imports?.() ?? [],
+      api.previewWeekAdvance?.() ?? null,
     ]);
     setCoaches(nextCoaches);
     setTenures(nextTenures);
     setRosterImports(nextRosters);
     setScheduleImports(nextSchedules);
+    setTop25Imports(nextTop25Imports);
+    setWeekPreview(nextWeekPreview);
     setSelectedTenureId(
       (current) => current || (nextTenures.find((tenure) => tenure.status === 'active')?.id ?? '')
     );
@@ -875,6 +1518,177 @@ export function CommissionerTeamImportsPage() {
   const selectedTeamName = selectedTenure
     ? teamNameById.get(selectedTenure.teamId) ?? selectedTenure.teamId
     : 'Selected Team';
+  const selectedTeamId = selectedTenure?.teamId;
+  const teamOptions = useMemo(
+    () => [...PLACEHOLDER_TEAMS].sort((a, b) => a.name.localeCompare(b.name)),
+    []
+  );
+  const currentRoster = useMemo(
+    () =>
+      selectedTeamId
+        ? rosterImports.find((item) => item.teamId === selectedTeamId)?.roster ??
+          PLACEHOLDER_ROSTERS[selectedTeamId]
+        : undefined,
+    [rosterImports, selectedTeamId]
+  );
+  const currentRosterSource = selectedTeamId && rosterImports.some((item) => item.teamId === selectedTeamId)
+    ? 'Latest imported roster'
+    : 'Placeholder roster';
+  const currentScheduleImport = useMemo(
+    () =>
+      selectedTeamId
+        ? scheduleImports.find(
+            (item) =>
+              item.teamId === selectedTeamId ||
+              mostCommonTeamId(item.season.schedule) === selectedTeamId
+          )
+        : undefined,
+    [scheduleImports, selectedTeamId]
+  );
+  const fallbackSeason = PLACEHOLDER_DYNASTY.seasons.find(
+    (season) => season.year === PLACEHOLDER_DYNASTY.currentSeasonYear
+  );
+  const currentSchedule = useMemo(
+    () =>
+      currentScheduleImport?.season.schedule ??
+      fallbackSeason?.schedule.filter(
+        (game) => game.homeTeamId === selectedTeamId || game.awayTeamId === selectedTeamId
+      ) ??
+      [],
+    [currentScheduleImport, fallbackSeason, selectedTeamId]
+  );
+  const currentScheduleSource = currentScheduleImport ? 'Latest imported schedule' : 'Placeholder schedule';
+  const latestTop25 = [...top25Imports]
+    .map((item) => item.rankings)
+    .sort((a, b) => b.capturedAt.localeCompare(a.capturedAt))[0];
+  const currentTop25 = latestTop25
+    ? latestTop25.entries.slice().sort((a, b) => a.rank - b.rank)
+    : getTop25FromStandings();
+  const top25Source = latestTop25 ? 'Latest imported Top 25' : 'Placeholder standings';
+  const top25Baseline = currentTop25.slice(0, 25).map((entry) => ({
+    rank: entry.rank,
+    teamId: entry.teamId,
+    wins: entry.wins,
+    losses: entry.losses,
+  }));
+  const scheduleBaseline = selectedTeamId
+    ? currentSchedule.map((game) => scheduleGameToDraft(game, selectedTeamId))
+    : [];
+  const rosterBaseline = (currentRoster?.players ?? []).map((player) => ({
+    id: player.id,
+    jerseyNumber: player.jerseyNumber,
+    firstName: player.firstName,
+    lastName: player.lastName,
+    position: player.position,
+    overall: player.ratings.overall,
+  }));
+  const hasTop25Changes = JSON.stringify(top25Draft) !== JSON.stringify(top25Baseline);
+  const hasScheduleChanges = JSON.stringify(scheduleDraft) !== JSON.stringify(scheduleBaseline);
+  const hasRosterChanges = JSON.stringify(rosterDraft) !== JSON.stringify(rosterBaseline);
+  const visibleTop25Draft = showTop25 ? top25Draft : top25Draft.slice(0, 9);
+
+  useEffect(() => {
+    setTop25Draft(
+      currentTop25.slice(0, 25).map((entry) => ({
+        rank: entry.rank,
+        teamId: entry.teamId,
+        wins: entry.wins,
+        losses: entry.losses,
+      }))
+    );
+  }, [top25Imports]);
+
+  useEffect(() => {
+    if (!selectedTeamId) {
+      setScheduleDraft([]);
+      return;
+    }
+    setScheduleDraft(currentSchedule.map((game) => scheduleGameToDraft(game, selectedTeamId)));
+  }, [currentSchedule, selectedTeamId]);
+
+  useEffect(() => {
+    setShowAllRoster(false);
+    setRosterDraft(
+      (currentRoster?.players ?? []).map((player) => ({
+        id: player.id,
+        jerseyNumber: player.jerseyNumber,
+        firstName: player.firstName,
+        lastName: player.lastName,
+        position: player.position,
+        overall: player.ratings.overall,
+      }))
+    );
+  }, [currentRoster]);
+
+  function revertTop25Edits() {
+    setTop25Draft(
+      currentTop25.slice(0, 25).map((entry) => ({
+        rank: entry.rank,
+        teamId: entry.teamId,
+        wins: entry.wins,
+        losses: entry.losses,
+      }))
+    );
+    setEditingTop25Index(null);
+  }
+
+  function revertScheduleEdits() {
+    setScheduleDraft(
+      selectedTeamId ? currentSchedule.map((game) => scheduleGameToDraft(game, selectedTeamId)) : []
+    );
+    setEditingScheduleIndex(null);
+  }
+
+  function revertRosterEdits() {
+    setRosterDraft(
+      (currentRoster?.players ?? []).map((player) => ({
+        id: player.id,
+        jerseyNumber: player.jerseyNumber,
+        firstName: player.firstName,
+        lastName: player.lastName,
+        position: player.position,
+        overall: player.ratings.overall,
+      }))
+    );
+    setEditingRosterId(null);
+  }
+
+  useEffect(() => {
+    if (editingTop25Index === null && editingScheduleIndex === null && editingRosterId === null) return;
+
+    function closeEditModeOnOutsideClick(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest('.click-edit-row')) return;
+
+      setEditingTop25Index(null);
+      setEditingScheduleIndex(null);
+      setEditingRosterId(null);
+    }
+
+    document.addEventListener('pointerdown', closeEditModeOnOutsideClick, true);
+    return () => document.removeEventListener('pointerdown', closeEditModeOnOutsideClick, true);
+  }, [editingRosterId, editingScheduleIndex, editingTop25Index]);
+
+  async function advanceWeekFromImports() {
+    if (!api.advanceToNextWeek) {
+      setMessage('Restart the desktop app to enable weekly checkpoints.');
+      return;
+    }
+    setWeekBusy(true);
+    setMessage(null);
+    try {
+      const result = await api.advanceToNextWeek();
+      setMessage(
+        `Saved ${result.seasonYear} week ${result.week} checkpoint (${result.progressionSnapshots} new progression snapshots).`
+      );
+      await refresh();
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setWeekBusy(false);
+    }
+  }
 
   async function importRosterScreenshot() {
     if (!config || !selectedTenure) return;
@@ -894,8 +1708,12 @@ export function CommissionerTeamImportsPage() {
         setMessage('Roster screenshot selection canceled.');
         return;
       }
+      const warningNote =
+        imported.warnings && imported.warnings.length > 0
+          ? ` (${imported.warnings.length} merge warning${imported.warnings.length === 1 ? '' : 's'} — review before saving.)`
+          : '';
       setMessage(
-        `Imported ${imported.roster.players.length} roster players for ${teamNameById.get(selectedTenure.teamId) ?? selectedTenure.teamId}.`
+        `Imported ${imported.roster.players.length} roster players for ${teamNameById.get(selectedTenure.teamId) ?? selectedTenure.teamId}.${warningNote}`
       );
       await refresh();
     } catch (error) {
@@ -923,8 +1741,234 @@ export function CommissionerTeamImportsPage() {
         setMessage('Schedule screenshot selection canceled.');
         return;
       }
+      const warningNote =
+        imported.warnings && imported.warnings.length > 0
+          ? ` (${imported.warnings.length} merge warning${imported.warnings.length === 1 ? '' : 's'} — review before saving.)`
+          : '';
       setMessage(
-        `Imported ${imported.season.schedule.length} schedule games for ${teamNameById.get(selectedTenure.teamId) ?? selectedTenure.teamId}.`
+        `Imported ${imported.season.schedule.length} schedule games for ${teamNameById.get(selectedTenure.teamId) ?? selectedTenure.teamId}.${warningNote}`
+      );
+      await refresh();
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setBusyKind(null);
+    }
+  }
+
+  async function importTop25Screenshot() {
+    if (!config) return;
+    if (!api.importTop25Screenshot) {
+      setMessage('Restart the desktop app to load the latest league-wide import tools.');
+      return;
+    }
+
+    setBusyKind('top25');
+    setMessage(null);
+    try {
+      const imported = await api.importTop25Screenshot({ dynastyId: config.dynastyId });
+      if (!imported) {
+        setMessage('Top 25 screenshot selection canceled.');
+        return;
+      }
+      const warningNote =
+        imported.warnings && imported.warnings.length > 0
+          ? ` (${imported.warnings.length} merge warning${imported.warnings.length === 1 ? '' : 's'} — review before saving.)`
+          : '';
+      setMessage(`Imported ${imported.rankings.entries.length} Top 25 rankings.${warningNote}`);
+      await refresh();
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setBusyKind(null);
+    }
+  }
+
+  async function saveTop25Edits() {
+    if (!config || !api.saveManualTop25 || !hasTop25Changes) return;
+    setSavingKind('top25');
+    setMessage(null);
+    try {
+      if (top25Draft.length !== 25) {
+        setMessage('Top 25 must include exactly 25 ranked teams before saving.');
+        return;
+      }
+
+      const missingRows = top25Draft.filter((row) => !row.teamId);
+      if (missingRows.length > 0) {
+        setMessage(`Choose a team for rank #${missingRows[0]?.rank} before saving the Top 25.`);
+        setEditingTop25Index(top25Draft.findIndex((row) => !row.teamId));
+        return;
+      }
+
+      const duplicateTeam = top25Draft.find((row, index) =>
+        top25Draft.some((other, otherIndex) => otherIndex !== index && other.teamId === row.teamId)
+      );
+      if (duplicateTeam) {
+        setMessage(`${teamNameById.get(duplicateTeam.teamId) ?? duplicateTeam.teamId} is listed more than once in the Top 25.`);
+        return;
+      }
+
+      const entries: RankingEntry[] = top25Draft.map((row) => ({
+          rank: Number(row.rank),
+          teamId: row.teamId,
+          teamName: teamNameById.get(row.teamId) ?? row.teamId,
+          wins: Number(row.wins),
+          losses: Number(row.losses),
+        }));
+      await api.saveManualTop25({ dynastyId: config.dynastyId, entries });
+      setEditingTop25Index(null);
+      setMessage('Top 25 edits saved.');
+      await refresh();
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setSavingKind(null);
+    }
+  }
+
+  async function saveScheduleEdits() {
+    if (!config || !selectedTeamId || !api.saveManualSchedule || !hasScheduleChanges) return;
+    setSavingKind('schedule');
+    setMessage(null);
+    try {
+      const schedule = scheduleDraft
+        .filter((row) => row.isBye || row.opponentTeamId)
+        .map((row) => draftToScheduleGame(row, selectedTeamId));
+      await api.saveManualSchedule({ dynastyId: config.dynastyId, teamId: selectedTeamId, schedule });
+      setEditingScheduleIndex(null);
+      setMessage('Schedule edits saved.');
+      await refresh();
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setSavingKind(null);
+    }
+  }
+
+  async function saveRosterEdits() {
+    if (!config || !selectedTeamId || !currentRoster || !api.saveManualRoster || !hasRosterChanges) return;
+    setSavingKind('roster');
+    setMessage(null);
+    try {
+      const draftById = new Map(rosterDraft.map((row) => [row.id, row]));
+      const roster: Roster = {
+        ...currentRoster,
+        players: currentRoster.players.map((player) => {
+          const draft = draftById.get(player.id);
+          if (!draft) return player;
+          return {
+            ...player,
+            jerseyNumber: draft.jerseyNumber,
+            firstName: draft.firstName.trim() || player.firstName,
+            lastName: draft.lastName.trim() || player.lastName,
+            position: draft.position.trim() || player.position,
+            ratings: {
+              ...player.ratings,
+              overall: draft.overall,
+            },
+          };
+        }),
+      };
+      await api.saveManualRoster({ dynastyId: config.dynastyId, teamId: selectedTeamId, roster });
+      setEditingRosterId(null);
+      setMessage('Roster edits saved.');
+      await refresh();
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setSavingKind(null);
+    }
+  }
+
+  async function undoLastRosterImport() {
+    if (!config || !selectedTeamId) return;
+    if (!api.undoLatestRosterImport) {
+      setMessage('Restart the desktop app to enable undo import actions.');
+      return;
+    }
+    setBusyKind('roster');
+    setMessage(null);
+    try {
+      const result = await api.undoLatestRosterImport({
+        dynastyId: config.dynastyId,
+        teamId: selectedTeamId,
+      });
+      setMessage(
+        result.removedRosterImports > 0
+          ? `Removed the latest roster import for ${selectedTeamName}.`
+          : `No roster imports found for ${selectedTeamName}.`
+      );
+      await refresh();
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setBusyKind(null);
+    }
+  }
+
+  async function undoLastScheduleImport() {
+    if (!config || !selectedTeamId) return;
+    if (!api.undoLatestScheduleImport) {
+      setMessage('Restart the desktop app to enable undo import actions.');
+      return;
+    }
+    setBusyKind('schedule');
+    setMessage(null);
+    try {
+      const result = await api.undoLatestScheduleImport({
+        dynastyId: config.dynastyId,
+        teamId: selectedTeamId,
+      });
+      setMessage(
+        result.removedScheduleImports > 0
+          ? `Removed the latest schedule import for ${selectedTeamName}.`
+          : `No schedule imports found for ${selectedTeamName}.`
+      );
+      await refresh();
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setBusyKind(null);
+    }
+  }
+
+  async function clearAllSelectedTeamData() {
+    if (!config || !selectedTeamId) return;
+    if (!api.clearTeamImports) {
+      setMessage('Restart the desktop app to enable temporary clear-all testing actions.');
+      return;
+    }
+    setBusyKind('roster');
+    setMessage(null);
+    try {
+      const result = await api.clearTeamImports({
+        dynastyId: config.dynastyId,
+        teamId: selectedTeamId,
+      });
+      setMessage(
+        `Cleared all testing imports for ${selectedTeamName}: ${result.removedRosterImports} roster, ${result.removedScheduleImports} schedule.`
+      );
+      await refresh();
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setBusyKind(null);
+    }
+  }
+
+  async function clearAllImportData() {
+    if (!config) return;
+    if (!api.clearAllImports) {
+      setMessage('Restart the desktop app to enable temporary clear-all import cleanup.');
+      return;
+    }
+    setBusyKind('top25');
+    setMessage(null);
+    try {
+      const result = await api.clearAllImports({ dynastyId: config.dynastyId });
+      setMessage(
+        `Cleared all imports: ${result.removedRosterImports} roster, ${result.removedScheduleImports} schedule, ${result.removedTop25Imports} Top 25.`
       );
       await refresh();
     } catch (error) {
@@ -963,8 +2007,8 @@ export function CommissionerTeamImportsPage() {
       <div className="panel">
         <div className="assignment-card-header">
           <div>
-            <h3>Assigned Team</h3>
-            <p className="muted">Choose which coach team this import belongs to.</p>
+            <h3>Team-Scoped Imports</h3>
+            <p className="muted">Choose the assigned coach/team, then import data for that team.</p>
           </div>
         </div>
         {activeTenures.length === 0 ? (
@@ -996,29 +2040,379 @@ export function CommissionerTeamImportsPage() {
             </div>
           </div>
         )}
+        <div className="import-toolbox">
+          <div>
+            <h3>Upload For {selectedTeamName}</h3>
+            <p className="muted">
+              The selected team above determines where roster and schedule data is saved.
+            </p>
+          </div>
+
+          <div className="action-group">
+            <span>Checkpoint</span>
+            <div className="actions compact-actions">
+              <button
+                className="secondary"
+                onClick={() => void advanceWeekFromImports()}
+                disabled={!selectedTenure || busyKind !== null || weekBusy}
+              >
+                {weekBusy ? 'Saving checkpoint…' : 'Advance Week'}
+              </button>
+            </div>
+            {weekPreview && (
+              <p className="muted">
+                Next: {weekPreview.currentSeasonYear} week {weekPreview.nextWeek} ·{' '}
+                {weekPreview.rosterPlayerCount} players · {weekPreview.scheduleGameCount} schedule games
+              </p>
+            )}
+          </div>
+
+          <div className="action-group">
+            <span>Import</span>
+            <div className="actions compact-actions">
+              <button onClick={() => void importRosterScreenshot()} disabled={!selectedTenure || busyKind !== null}>
+                {busyKind === 'roster' ? 'Importing roster...' : 'Roster Screenshots'}
+              </button>
+              <button
+                className="secondary"
+                onClick={() => void importScheduleScreenshot()}
+                disabled={!selectedTenure || busyKind !== null}
+              >
+                {busyKind === 'schedule' ? 'Importing schedule...' : 'Schedule Screenshots'}
+              </button>
+            </div>
+          </div>
+
+          <div className="action-group">
+            <span>Undo Latest</span>
+            <div className="actions compact-actions">
+              <button
+                className="secondary"
+                onClick={() => void undoLastRosterImport()}
+                disabled={!selectedTenure || busyKind !== null}
+              >
+                Roster Import
+              </button>
+              <button
+                className="secondary"
+                onClick={() => void undoLastScheduleImport()}
+                disabled={!selectedTenure || busyKind !== null}
+              >
+                Schedule Import
+              </button>
+            </div>
+          </div>
+
+          <div className="action-group testing-tools">
+            <span>Temporary Testing Cleanup</span>
+            <div className="actions compact-actions">
+              <button
+                className="secondary danger"
+                onClick={() => void clearAllSelectedTeamData()}
+                disabled={!selectedTenure || busyKind !== null}
+              >
+                Clear Selected Team
+              </button>
+              <button
+                className="secondary danger"
+                onClick={() => void clearAllImportData()}
+                disabled={busyKind !== null}
+              >
+                Clear All Imports
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="panel">
-        <h3>Upload For {selectedTeamName}</h3>
-        <p className="muted">
-          Both buttons use the selected team above, so roster and schedule updates follow the same flow.
-        </p>
-        <div className="actions">
-          <button onClick={() => void importRosterScreenshot()} disabled={!selectedTenure || busyKind !== null}>
-            {busyKind === 'roster' ? 'Importing roster...' : 'Upload Roster Screenshot'}
-          </button>
+        <h3>League-Wide Updates</h3>
+        <p className="muted">Upload rankings and review the current Top 25 when needed.</p>
+        <div className="actions import-action-row">
           <button
             className="secondary"
-            onClick={() => void importScheduleScreenshot()}
-            disabled={!selectedTenure || busyKind !== null}
+            onClick={() => void importTop25Screenshot()}
+            disabled={busyKind !== null}
           >
-            {busyKind === 'schedule' ? 'Importing schedule...' : 'Upload Schedule Screenshot'}
+            {busyKind === 'top25' ? 'Importing Top 25...' : 'Upload Top 25 Screenshots'}
           </button>
+          <button className="secondary" onClick={() => setShowTop25((current) => !current)}>
+            {showTop25 ? 'Show Top 9' : 'Show Top 25'}
+          </button>
+        </div>
+        <div className="embedded-top25">
+          <div className="card-heading">
+            <div>
+              <h4>{showTop25 ? 'Top 25' : 'Top 9'}</h4>
+              <p className="muted">{top25Source}. Click a row to edit.</p>
+            </div>
+          </div>
+          <div className="editable-table">
+            <div className="editable-row editable-row-header top25-edit-row">
+              <span>Rank</span>
+              <span>Team</span>
+              <span>W</span>
+              <span>L</span>
+            </div>
+            {visibleTop25Draft.map((row, index) => (
+              <Top25EditableRow
+                key={`${row.rank}-${index}`}
+                row={row}
+                index={index}
+                isEditing={editingTop25Index === index}
+                teamNameById={teamNameById}
+                teamOptions={teamOptions}
+                setEditingTop25Index={setEditingTop25Index}
+                setTop25Draft={setTop25Draft}
+              />
+            ))}
+          </div>
+          <div className="edit-actions">
+            <button className="secondary" onClick={revertTop25Edits} disabled={savingKind !== null || !hasTop25Changes}>
+              Revert Changes
+            </button>
+            <button className="secondary" onClick={() => void saveTop25Edits()} disabled={savingKind !== null || !hasTop25Changes}>
+              {savingKind === 'top25' ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
         </div>
       </div>
 
       <div className="panel full">
-        <h3>Recent Team Imports</h3>
+        <div className="section-header">
+          <div>
+            <h3>Current Data For {selectedTeamName}</h3>
+            <p className="muted">
+              Review the current local data before replacing it with new screenshots.
+            </p>
+          </div>
+        </div>
+        <div className="current-import-data">
+          <article className="current-data-card">
+            <div className="card-heading">
+              <div>
+                <h4>Selected Team Schedule</h4>
+                <p className="muted">{currentScheduleSource}</p>
+              </div>
+            </div>
+            <div className="editable-table">
+              <div className="editable-row editable-row-header schedule-edit-row">
+                <span>Week</span>
+                <span>Site</span>
+                <span>Opponent</span>
+                <span>Played</span>
+                <span>Score</span>
+              </div>
+              {scheduleDraft.map((row, index) => (
+                <div
+                  className="editable-row schedule-edit-row click-edit-row"
+                  key={row.id}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setEditingScheduleIndex(index);
+                  }}
+                  onBlur={(event) => {
+                    const nextTarget = event.relatedTarget;
+                    if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+                      setEditingScheduleIndex(null);
+                    }
+                  }}
+                >
+                  {editingScheduleIndex === index ? (
+                    <>
+                      <input
+                        type="number"
+                        value={row.week}
+                        onChange={(event) =>
+                          updateScheduleDraft(index, { week: Number(event.target.value) }, setScheduleDraft)
+                        }
+                      />
+                      <select
+                        value={row.site}
+                        onChange={(event) =>
+                          updateScheduleDraft(index, {
+                            site: event.target.value as 'home' | 'away' | 'bye',
+                            isBye: event.target.value === 'bye',
+                            opponentTeamId: event.target.value === 'bye' ? 'team-bye' : row.opponentTeamId,
+                            isPlayed: event.target.value === 'bye' ? false : row.isPlayed,
+                          }, setScheduleDraft)
+                        }
+                      >
+                        <option value="home">Home</option>
+                        <option value="away">Away</option>
+                        <option value="bye">BYE</option>
+                      </select>
+                      {row.isBye ? (
+                        <strong>BYE</strong>
+                      ) : (
+                        <select
+                          value={row.opponentTeamId}
+                          onChange={(event) =>
+                            updateScheduleDraft(index, { opponentTeamId: event.target.value }, setScheduleDraft)
+                          }
+                        >
+                          {teamOptions
+                            .filter((team) => team.id !== selectedTeamId)
+                            .map((team) => (
+                              <option key={team.id} value={team.id}>
+                                {team.name}
+                              </option>
+                            ))}
+                        </select>
+                      )}
+                      <input
+                        type="checkbox"
+                        checked={row.isPlayed}
+                        disabled={row.isBye}
+                        onChange={(event) =>
+                          updateScheduleDraft(index, { isPlayed: event.target.checked }, setScheduleDraft)
+                        }
+                      />
+                      <div className="score-inputs">
+                        <input
+                          type="number"
+                          value={row.teamScore}
+                          disabled={row.isBye}
+                          onChange={(event) =>
+                            updateScheduleDraft(index, { teamScore: Number(event.target.value) }, setScheduleDraft)
+                          }
+                        />
+                        <span>-</span>
+                        <input
+                          type="number"
+                          value={row.opponentScore}
+                          disabled={row.isBye}
+                          onChange={(event) =>
+                            updateScheduleDraft(index, { opponentScore: Number(event.target.value) }, setScheduleDraft)
+                          }
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <span>{row.week}</span>
+                      <span>{row.isBye ? 'BYE' : row.site === 'home' ? 'Home' : 'Away'}</span>
+                      <strong>{row.isBye ? 'BYE' : teamNameById.get(row.opponentTeamId) ?? row.opponentTeamId}</strong>
+                      <span>{row.isBye ? '-' : row.isPlayed ? 'Yes' : 'No'}</span>
+                      <span>{formatScheduleDraftResult(row)}</span>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="edit-actions">
+              <button className="secondary" onClick={revertScheduleEdits} disabled={savingKind !== null || !hasScheduleChanges}>
+                Revert Changes
+              </button>
+              <button className="secondary" onClick={() => void saveScheduleEdits()} disabled={savingKind !== null || !selectedTeamId || !hasScheduleChanges}>
+                {savingKind === 'schedule' ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </article>
+
+          <article className="current-data-card">
+            <div className="card-heading">
+              <div>
+                <h4>Roster</h4>
+                <p className="muted">{currentRosterSource}</p>
+              </div>
+              <span className="muted">{currentRoster?.players.length ?? 0} players</span>
+            </div>
+            <div className="editable-table">
+              <div className="editable-row editable-row-header roster-edit-row">
+                <span>#</span>
+                <span>First</span>
+                <span>Last</span>
+                <span>Pos</span>
+                <span>OVR</span>
+              </div>
+              {(showAllRoster ? rosterDraft : rosterDraft.slice(0, 12)).map((row, index) => (
+                <div
+                  className="editable-row roster-edit-row click-edit-row"
+                  key={row.id}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setEditingRosterId(row.id);
+                  }}
+                  onBlur={(event) => {
+                    const nextTarget = event.relatedTarget;
+                    if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+                      setEditingRosterId(null);
+                    }
+                  }}
+                >
+                  {editingRosterId === row.id ? (
+                    <>
+                      <input
+                        type="number"
+                        value={row.jerseyNumber ?? ''}
+                        onChange={(event) =>
+                          updateRosterDraft(index, { jerseyNumber: Number(event.target.value) }, setRosterDraft)
+                        }
+                      />
+                      <input
+                        value={row.firstName}
+                        onChange={(event) =>
+                          updateRosterDraft(index, { firstName: event.target.value }, setRosterDraft)
+                        }
+                      />
+                      <input
+                        value={row.lastName}
+                        onChange={(event) =>
+                          updateRosterDraft(index, { lastName: event.target.value }, setRosterDraft)
+                        }
+                      />
+                      <input
+                        value={row.position}
+                        onChange={(event) =>
+                          updateRosterDraft(index, { position: event.target.value }, setRosterDraft)
+                        }
+                      />
+                      <input
+                        type="number"
+                        value={row.overall ?? ''}
+                        onChange={(event) =>
+                          updateRosterDraft(index, { overall: Number(event.target.value) }, setRosterDraft)
+                        }
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <span>{row.jerseyNumber ? `#${row.jerseyNumber}` : '-'}</span>
+                      <strong>{row.firstName}</strong>
+                      <strong>{row.lastName}</strong>
+                      <span>{row.position}</span>
+                      <span>{row.overall ?? '-'}</span>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button
+              className="secondary"
+              onClick={() => setShowAllRoster((current) => !current)}
+              disabled={rosterDraft.length <= 12}
+            >
+              {showAllRoster ? 'Show First 12' : `Show All ${rosterDraft.length}`}
+            </button>
+            <p className="muted">
+              Showing {showAllRoster ? rosterDraft.length : Math.min(rosterDraft.length, 12)} of{' '}
+              {rosterDraft.length} roster players.
+            </p>
+            <div className="edit-actions">
+              <button className="secondary" onClick={revertRosterEdits} disabled={savingKind !== null || !hasRosterChanges}>
+                Revert Changes
+              </button>
+              <button className="secondary" onClick={() => void saveRosterEdits()} disabled={savingKind !== null || !currentRoster || !hasRosterChanges}>
+                {savingKind === 'roster' ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <div className="panel full">
+        <h3>Recent Imports</h3>
         <DataTable
           headers={['Type', 'Team', 'Details', 'Source']}
           rows={[
@@ -1038,11 +2432,113 @@ export function CommissionerTeamImportsPage() {
                 item.sourceLabel,
               ];
             }),
+            ...top25Imports.map((item) => [
+              'Top 25',
+              'League',
+              `${item.rankings.entries.length} ranked teams`,
+              item.sourceLabel,
+            ]),
           ]}
-          empty="No team imports yet."
+          empty="No imports yet."
         />
       </div>
     </section>
+  );
+}
+
+function Top25EditableRow({
+  row,
+  index,
+  isEditing,
+  teamNameById,
+  teamOptions,
+  setEditingTop25Index,
+  setTop25Draft,
+}: {
+  row: Top25DraftRow;
+  index: number;
+  isEditing: boolean;
+  teamNameById: Map<string, string>;
+  teamOptions: Team[];
+  setEditingTop25Index: Dispatch<SetStateAction<number | null>>;
+  setTop25Draft: Dispatch<SetStateAction<Top25DraftRow[]>>;
+}) {
+  return (
+    <div
+      className="editable-row top25-edit-row click-edit-row"
+      onClick={(event) => {
+        event.stopPropagation();
+        setEditingTop25Index(index);
+      }}
+      onBlur={(event) => {
+        const nextTarget = event.relatedTarget;
+        if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+          setEditingTop25Index(null);
+        }
+      }}
+    >
+      {isEditing ? (
+        <>
+          <input
+            type="number"
+            value={row.rank}
+            onChange={(event) =>
+              setTop25Draft((current) =>
+                current.map((item, itemIndex) =>
+                  itemIndex === index ? { ...item, rank: Number(event.target.value) } : item
+                )
+              )
+            }
+          />
+          <select
+            value={row.teamId}
+            onChange={(event) =>
+              setTop25Draft((current) =>
+                current.map((item, itemIndex) =>
+                  itemIndex === index ? { ...item, teamId: event.target.value } : item
+                )
+              )
+            }
+          >
+            <option value="">Choose team...</option>
+            {teamOptions.map((team) => (
+              <option key={team.id} value={team.id}>
+                {team.name}
+              </option>
+            ))}
+          </select>
+          <input
+            type="number"
+            value={row.wins}
+            onChange={(event) =>
+              setTop25Draft((current) =>
+                current.map((item, itemIndex) =>
+                  itemIndex === index ? { ...item, wins: Number(event.target.value) } : item
+                )
+              )
+            }
+          />
+          <input
+            type="number"
+            value={row.losses}
+            onChange={(event) =>
+              setTop25Draft((current) =>
+                current.map((item, itemIndex) =>
+                  itemIndex === index ? { ...item, losses: Number(event.target.value) } : item
+                )
+              )
+            }
+          />
+        </>
+      ) : (
+        <>
+          <span>#{row.rank}</span>
+          <strong>{row.teamId ? teamNameById.get(row.teamId) ?? row.teamId : 'Manual entry required'}</strong>
+          <span>{row.wins}</span>
+          <span>{row.losses}</span>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -1053,6 +2549,116 @@ function mostCommonTeamId(games: Array<{ homeTeamId: string; awayTeamId: string 
     counts.set(game.awayTeamId, (counts.get(game.awayTeamId) ?? 0) + 1);
   }
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
+}
+
+function updateScheduleDraft(
+  index: number,
+  patch: Partial<ScheduleDraftRow>,
+  setScheduleDraft: Dispatch<SetStateAction<ScheduleDraftRow[]>>
+) {
+  setScheduleDraft((current) =>
+    current.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row))
+  );
+}
+
+function updateRosterDraft(
+  index: number,
+  patch: Partial<RosterDraftRow>,
+  setRosterDraft: Dispatch<SetStateAction<RosterDraftRow[]>>
+) {
+  setRosterDraft((current) =>
+    current.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row))
+  );
+}
+
+function formatScheduleDraftResult(row: ScheduleDraftRow): string {
+  if (row.isBye) return 'BYE';
+  if (!row.isPlayed) return 'Scheduled';
+  const result = row.teamScore > row.opponentScore ? 'W' : row.teamScore < row.opponentScore ? 'L' : 'T';
+  return `${result} ${row.teamScore}-${row.opponentScore}`;
+}
+
+function scheduleGameToDraft(game: ScheduleGame, selectedTeamId: string): ScheduleDraftRow {
+  if (game.isBye) {
+    return {
+      id: game.id,
+      week: game.week,
+      site: 'bye',
+      opponentTeamId: 'team-bye',
+      isBye: true,
+      isPlayed: false,
+      teamScore: 0,
+      opponentScore: 0,
+      isConferenceGame: game.isConferenceGame,
+    };
+  }
+
+  const isHome = game.homeTeamId === selectedTeamId;
+  return {
+    id: game.id,
+    week: game.week,
+    site: isHome ? 'home' : 'away',
+    opponentTeamId: isHome ? game.awayTeamId : game.homeTeamId,
+    isPlayed: game.isPlayed,
+    teamScore: game.isPlayed ? (isHome ? game.homeScore ?? 0 : game.awayScore ?? 0) : 0,
+    opponentScore: game.isPlayed ? (isHome ? game.awayScore ?? 0 : game.homeScore ?? 0) : 0,
+    isConferenceGame: game.isConferenceGame,
+  };
+}
+
+function draftToScheduleGame(
+  row: ScheduleDraftRow,
+  selectedTeamId: string
+): ScheduleGame {
+  if (row.isBye || row.site === 'bye') {
+    return {
+      id: row.id || `manual-week-${row.week}-bye-${selectedTeamId}`,
+      seasonId: `season-${PLACEHOLDER_DYNASTY.currentSeasonYear}`,
+      week: Number(row.week),
+      homeTeamId: selectedTeamId,
+      awayTeamId: 'team-bye',
+      isBye: true,
+      isConferenceGame: row.isConferenceGame,
+      isPlayed: false,
+    };
+  }
+
+  const isHome = row.site === 'home';
+  const homeTeamId = isHome ? selectedTeamId : row.opponentTeamId;
+  const awayTeamId = isHome ? row.opponentTeamId : selectedTeamId;
+  return {
+    id: row.id || `manual-week-${row.week}-${awayTeamId}-at-${homeTeamId}`,
+    seasonId: `season-${PLACEHOLDER_DYNASTY.currentSeasonYear}`,
+    week: Number(row.week),
+    homeTeamId,
+    awayTeamId,
+    homeScore: row.isPlayed ? (isHome ? row.teamScore : row.opponentScore) : undefined,
+    awayScore: row.isPlayed ? (isHome ? row.opponentScore : row.teamScore) : undefined,
+    isConferenceGame: row.isConferenceGame,
+    isPlayed: row.isPlayed,
+  };
+}
+
+function getTop25FromStandings(): Array<{
+  rank: number;
+  teamId: string;
+  teamName: string;
+  wins: number;
+  losses: number;
+}> {
+  const season = PLACEHOLDER_DYNASTY.seasons.find(
+    (item) => item.year === PLACEHOLDER_DYNASTY.currentSeasonYear
+  );
+  return (season?.standings ?? [])
+    .filter((standing) => standing.ranking !== undefined)
+    .sort((a, b) => (a.ranking ?? 999) - (b.ranking ?? 999))
+    .map((standing) => ({
+      rank: standing.ranking ?? 0,
+      teamId: standing.teamId,
+      teamName: PLACEHOLDER_TEAMS.find((team) => team.id === standing.teamId)?.name ?? standing.teamId,
+      wins: standing.wins,
+      losses: standing.losses,
+    }));
 }
 
 export function CommissionerHistoryPage() {
@@ -1083,13 +2689,216 @@ export function CommissionerHistoryPage() {
   );
 }
 
+function SearchableTeamSelect({
+  id,
+  teams,
+  value,
+  onChange,
+  placeholder,
+}: {
+  id: string;
+  teams: Team[];
+  value: string;
+  onChange: (teamId: string) => void;
+  placeholder?: string;
+}) {
+  const selectedTeam = teams.find((team) => team.id === value);
+  const [text, setText] = useState(selectedTeam?.name ?? '');
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setText(selectedTeam?.name ?? '');
+  }, [selectedTeam?.name]);
+
+  const visibleTeams = useMemo(() => {
+    const query = text.trim().toLowerCase();
+    if (!query) return teams;
+    return teams.filter((team) =>
+      `${team.name} ${team.abbreviation} ${team.id}`.toLowerCase().includes(query)
+    );
+  }, [teams, text]);
+
+  function chooseTeam(team: Team) {
+    onChange(team.id);
+    setText(team.name);
+    setOpen(false);
+  }
+
+  function closeAndNormalize() {
+    window.setTimeout(() => {
+      setOpen(false);
+      if (!text.trim()) {
+        onChange('');
+        return;
+      }
+      const exact = teams.find((team) =>
+        [team.name, team.abbreviation, team.id, `${team.name} (${team.abbreviation})`]
+          .map((label) => label.toLowerCase())
+          .includes(text.trim().toLowerCase())
+      );
+      if (exact) {
+        chooseTeam(exact);
+        return;
+      }
+      setText(selectedTeam?.name ?? '');
+    }, 100);
+  }
+
+  return (
+    <div className="search-select combo-select">
+      <input
+        id={id}
+        value={text}
+        placeholder={placeholder ?? 'Search team...'}
+        onFocus={() => setOpen(true)}
+        onClick={() => setOpen(true)}
+        onChange={(event) => {
+          setText(event.target.value);
+          setOpen(true);
+          if (!event.target.value.trim()) onChange('');
+        }}
+        onBlur={closeAndNormalize}
+      />
+      <button
+        type="button"
+        className="combo-select-toggle"
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => setOpen((current) => !current)}
+        aria-label="Show teams"
+      >
+        ▾
+      </button>
+      {open && (
+        <div className="combo-select-menu">
+          {visibleTeams.length === 0 ? (
+            <div className="combo-select-empty">No teams match search</div>
+          ) : (
+            visibleTeams.map((team) => (
+              <button
+                key={team.id}
+                type="button"
+                className={team.id === value ? 'combo-select-option active' : 'combo-select-option'}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  chooseTeam(team);
+                }}
+              >
+                <span>{team.name}</span>
+                <small>{team.abbreviation}</small>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SearchableTextSelect({
+  id,
+  options,
+  value,
+  onChange,
+  placeholder,
+}: {
+  id: string;
+  options: string[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  const [text, setText] = useState(value);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setText(value);
+  }, [value]);
+
+  const visibleOptions = useMemo(() => {
+    const query = text.trim().toLowerCase();
+    if (!query) return options;
+    return options.filter((option) => option.toLowerCase().includes(query));
+  }, [options, text]);
+
+  function chooseOption(option: string) {
+    onChange(option);
+    setText(option);
+    setOpen(false);
+  }
+
+  function closeAndNormalize() {
+    window.setTimeout(() => {
+      setOpen(false);
+      if (!text.trim()) {
+        onChange('');
+        setText('');
+        return;
+      }
+      const exact = options.find((option) => option.toLowerCase() === text.trim().toLowerCase());
+      if (exact) {
+        chooseOption(exact);
+        return;
+      }
+      setText(value);
+    }, 100);
+  }
+
+  return (
+    <div className="search-select combo-select">
+      <input
+        id={id}
+        value={text}
+        placeholder={placeholder ?? 'Search...'}
+        onFocus={() => setOpen(true)}
+        onClick={() => setOpen(true)}
+        onChange={(event) => {
+          setText(event.target.value);
+          setOpen(true);
+          if (!event.target.value.trim()) onChange('');
+        }}
+        onBlur={closeAndNormalize}
+      />
+      <button
+        type="button"
+        className="combo-select-toggle"
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => setOpen((current) => !current)}
+        aria-label="Show options"
+      >
+        ▾
+      </button>
+      {open && (
+        <div className="combo-select-menu">
+          {visibleOptions.length === 0 ? (
+            <div className="combo-select-empty">No options match search</div>
+          ) : (
+            visibleOptions.map((option) => (
+              <button
+                key={option}
+                type="button"
+                className={option === value ? 'combo-select-option active' : 'combo-select-option'}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  chooseOption(option);
+                }}
+              >
+                <span>{option}</span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DataTable({
   headers,
   rows,
   empty = 'No records yet.',
 }: {
   headers: string[];
-  rows: string[][];
+  rows: ReactNode[][];
   empty?: string;
 }) {
   return (

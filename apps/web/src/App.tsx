@@ -8,9 +8,12 @@ import {
   CommissionerHistoryPage,
   CommissionerTeamImportsPage,
   CommissionerOverviewPage,
+  CommissionerAdvanceSeasonPage,
+  CommissionerArchivePage,
   CommissionerPublishPage,
   CommissionerUsersPage,
 } from './commissioner';
+import { CommissionerAdminPage } from './commissioner-admin';
 
 const api = getCompanionApi();
 
@@ -19,15 +22,19 @@ const nav = [
   { to: '/commissioner/users', label: 'Users' },
   { to: '/commissioner/assignments', label: 'Assign Teams' },
   { to: '/commissioner/imports', label: 'Imports' },
+  { to: '/commissioner/advance-week', label: 'Advance Week' },
+  { to: '/commissioner/advance-season', label: 'Advance Season' },
   { to: '/commissioner/publish', label: 'Publish' },
   { to: '/commissioner/history', label: 'History' },
   { to: '/scanner', label: 'Local Files' },
+  { to: '/admin', label: 'Admin' },
 ];
 
 export function App() {
   const [summary, setSummary] = useState<AppSummary | null>(null);
   const [files, setFiles] = useState<Array<IndexedFile & { workingCopyPath?: string }>>([]);
   const [activeUserCount, setActiveUserCount] = useState(0);
+  const [activeLeagueName, setActiveLeagueName] = useState<string | null>(null);
   const [lastPublishDate, setLastPublishDate] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -42,6 +49,7 @@ export function App() {
 
     if (api.getCommissionerConfig) {
       const config = await api.getCommissionerConfig();
+      setActiveLeagueName(config.leagueName);
       const [tenures, history] = await Promise.all([
         api.listCommissionerTenures?.(config.dynastyId) ?? [],
         api.listPublishHistory?.(config.dynastyId) ?? [],
@@ -97,6 +105,8 @@ export function App() {
           ))}
         </nav>
         <div className="sidebar-card">
+          <span>Active League</span>
+          <strong>{activeLeagueName ?? 'Loading...'}</strong>
           <span>Active Users</span>
           <strong>{activeUserCount}</strong>
           <small>Last publish: {formatSidebarDate(lastPublishDate)}</small>
@@ -119,11 +129,15 @@ export function App() {
               />
             }
           />
+          <Route path="/admin" element={<CommissionerAdminPage onLeagueChanged={refresh} />} />
           <Route path="/commissioner" element={<CommissionerShell />}>
             <Route index element={<CommissionerOverviewPage />} />
             <Route path="users" element={<CommissionerUsersPage />} />
             <Route path="assignments" element={<CommissionerAssignmentsPage />} />
             <Route path="imports" element={<CommissionerTeamImportsPage />} />
+            <Route path="advance-week" element={<CommissionerArchivePage />} />
+            <Route path="archive" element={<Navigate to="advance-week" replace />} />
+            <Route path="advance-season" element={<CommissionerAdvanceSeasonPage />} />
             <Route path="publish" element={<CommissionerPublishPage />} />
             <Route path="history" element={<CommissionerHistoryPage />} />
           </Route>

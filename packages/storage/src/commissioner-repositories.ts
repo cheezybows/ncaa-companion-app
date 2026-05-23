@@ -2,6 +2,17 @@ import { randomUUID } from 'node:crypto';
 import type { AppUser, Roster, Team, TeamTenure } from '@ncaa/domain';
 import type { DynastySyncPayload } from '@ncaa/sync';
 import type Database from 'better-sqlite3';
+import {
+  DEFAULT_COMMISSIONER_DYNASTY_STATE,
+  type CommissionerDynastyState,
+} from './dynasty-state.js';
+import {
+  leagueIdFromName,
+  type CommissionerLeague,
+  type CreateCommissionerLeagueInput,
+} from './leagues.js';
+
+const ACTIVE_LEAGUE_SETTING_KEY = 'active_league_id';
 
 export interface RosterImportRecord {
   id: string;
@@ -196,6 +207,34 @@ export class CommissionerRepository {
     }));
   }
 
+  deleteRosterImportsForTeam(dynastyId: string, teamId: string): number {
+    const result = this.db
+      .prepare(`DELETE FROM roster_imports WHERE dynasty_id = @dynastyId AND team_id = @teamId`)
+      .run({ dynastyId, teamId });
+    return result.changes;
+  }
+
+  deleteRosterImportsForDynasty(dynastyId: string): number {
+    const result = this.db
+      .prepare(`DELETE FROM roster_imports WHERE dynasty_id = @dynastyId`)
+      .run({ dynastyId });
+    return result.changes;
+  }
+
+  deleteLatestRosterImportForTeam(dynastyId: string, teamId: string): number {
+    const row = this.db
+      .prepare(
+        `SELECT id FROM roster_imports
+         WHERE dynasty_id = @dynastyId AND team_id = @teamId
+         ORDER BY imported_at DESC
+         LIMIT 1`
+      )
+      .get({ dynastyId, teamId }) as { id: string } | undefined;
+    if (!row) return 0;
+    const result = this.db.prepare(`DELETE FROM roster_imports WHERE id = @id`).run({ id: row.id });
+    return result.changes;
+  }
+
   recordPublishedBatch(payload: DynastySyncPayload, status: 'completed' | 'failed' = 'completed'): void {
     this.db
       .prepare(
@@ -232,6 +271,77 @@ export class CommissionerRepository {
       .all({ dynastyId, limit }) as PublishedBatchRecord[];
   }
 
+  getDynastyState(dynastyId: string, defaultSeasonYear: number): CommissionerDynastyState {
+    const row = this.db
+      .prepare(
+        `SELECT dynasty_id as dynastyId, current_season_year as currentSeasonYear,
+                archived_seasons_json as archivedSeasonsJson,
+                archived_rankings_json as archivedRankingsJson,
+                team_roster_snapshots_json as teamRosterSnapshotsJson,
+                checkpoints_json as checkpointsJson,
+                player_catalog_json as playerCatalogJson,
+                postseason_results_json as postseasonResultsJson,
+                schedule_imports_json as scheduleImportsJson,
+                top25_imports_json as top25ImportsJson
+         FROM commissioner_dynasty_state WHERE dynasty_id = @dynastyId`
+      )
+      .get({ dynastyId }) as
+      | {
+          dynastyId: string;
+          currentSeasonYear: number;
+          archivedSeasonsJson: string;
+          archivedRankingsJson: string;
+          teamRosterSnapshotsJson: string;
+          checkpointsJson?: string;
+          playerCatalogJson?: string;
+          postseasonResultsJson?: string;
+          scheduleImportsJson: string;
+          top25ImportsJson: string;
+        }
+      | undefined;
+
+    if (!row) return DEFAULT_COMMISSIONER_DYNASTY_STATE(dynastyId, defaultSeasonYear);
+
+    return {
+      dynastyId: row.dynastyId,
+      currentSeasonYear: row.currentSeasonYear,
+      archivedSeasons: JSON.parse(row.archivedSeasonsJson),
+      archivedRankings: JSON.parse(row.archivedRankingsJson),
+      teamRosterSnapshots: JSON.parse(row.teamRosterSnapshotsJson),
+      checkpoints: JSON.parse(row.checkpointsJson ?? '[]'),
+      playerCatalog: JSON.parse(row.playerCatalogJson ?? '[]'),
+      postseasonResults: JSON.parse(row.postseasonResultsJson ?? '[]'),
+      scheduleImports: JSON.parse(row.scheduleImportsJson),
+      top25Imports: JSON.parse(row.top25ImportsJson),
+    };
+  }
+
+  saveDynastyState(state: CommissionerDynastyState): void {
+    this.db
+      .prepare(
+        `INSERT OR REPLACE INTO commissioner_dynasty_state
+         (dynasty_id, current_season_year, archived_seasons_json, archived_rankings_json,
+          team_roster_snapshots_json, checkpoints_json, player_catalog_json,
+          postseason_results_json, schedule_imports_json, top25_imports_json, updated_at)
+         VALUES (@dynastyId, @currentSeasonYear, @archivedSeasonsJson, @archivedRankingsJson,
+                 @teamRosterSnapshotsJson, @checkpointsJson, @playerCatalogJson,
+                 @postseasonResultsJson, @scheduleImportsJson, @top25ImportsJson, @updatedAt)`
+      )
+      .run({
+        dynastyId: state.dynastyId,
+        currentSeasonYear: state.currentSeasonYear,
+        archivedSeasonsJson: JSON.stringify(state.archivedSeasons),
+        archivedRankingsJson: JSON.stringify(state.archivedRankings),
+        teamRosterSnapshotsJson: JSON.stringify(state.teamRosterSnapshots),
+        checkpointsJson: JSON.stringify(state.checkpoints),
+        playerCatalogJson: JSON.stringify(state.playerCatalog),
+        postseasonResultsJson: JSON.stringify(state.postseasonResults),
+        scheduleImportsJson: JSON.stringify(state.scheduleImports),
+        top25ImportsJson: JSON.stringify(state.top25Imports),
+        updatedAt: new Date().toISOString(),
+      });
+  }
+
   getLastPublishedPayload(dynastyId: string): DynastySyncPayload | null {
     const row = this.db
       .prepare(
@@ -242,5 +352,100 @@ export class CommissionerRepository {
       .get({ dynastyId }) as { payloadJson: string } | undefined;
     if (!row) return null;
     return JSON.parse(row.payloadJson) as DynastySyncPayload;
+  }
+
+  listLeagues(): CommissionerLeague[] {
+    return this.db
+      .prepare(
+        `SELECT id, name, starting_season_year as startingSeasonYear, status,
+                commissioner_user_id as commissionerUserId, created_at as createdAt, updated_at as updatedAt
+         FROM commissioner_leagues
+         ORDER BY name COLLATE NOCASE`
+      )
+      .all() as CommissionerLeague[];
+  }
+
+  getLeague(leagueId: string): CommissionerLeague | null {
+    const row = this.db
+      .prepare(
+        `SELECT id, name, starting_season_year as startingSeasonYear, status,
+                commissioner_user_id as commissionerUserId, created_at as createdAt, updated_at as updatedAt
+         FROM commissioner_leagues WHERE id = @leagueId`
+      )
+      .get({ leagueId }) as CommissionerLeague | undefined;
+    return row ?? null;
+  }
+
+  createLeague(input: CreateCommissionerLeagueInput): CommissionerLeague {
+    const now = new Date().toISOString();
+    let id = input.id ?? leagueIdFromName(input.name);
+    while (this.getLeague(id)) {
+      id = `${id}-${randomUUID().slice(0, 8)}`;
+    }
+
+    const league: CommissionerLeague = {
+      id,
+      name: input.name.trim(),
+      startingSeasonYear: input.startingSeasonYear,
+      status: 'active',
+      commissionerUserId: input.commissionerUserId,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.db
+      .prepare(
+        `INSERT INTO commissioner_leagues
+         (id, name, starting_season_year, status, commissioner_user_id, created_at, updated_at)
+         VALUES (@id, @name, @startingSeasonYear, @status, @commissionerUserId, @createdAt, @updatedAt)`
+      )
+      .run(league);
+
+    const existingState = this.db
+      .prepare(`SELECT 1 as found FROM commissioner_dynasty_state WHERE dynasty_id = @id`)
+      .get({ id }) as { found: number } | undefined;
+    if (!existingState) {
+      this.saveDynastyState(DEFAULT_COMMISSIONER_DYNASTY_STATE(id, input.startingSeasonYear));
+    }
+    return league;
+  }
+
+  deleteLeague(leagueId: string): boolean {
+    if (!this.getLeague(leagueId)) return false;
+    this.deleteDynastyScopedData(leagueId);
+    const result = this.db.prepare(`DELETE FROM commissioner_leagues WHERE id = @leagueId`).run({ leagueId });
+    if (this.getActiveLeagueId() === leagueId) {
+      this.db.prepare(`DELETE FROM commissioner_settings WHERE key = @key`).run({
+        key: ACTIVE_LEAGUE_SETTING_KEY,
+      });
+    }
+    return result.changes > 0;
+  }
+
+  getActiveLeagueId(): string | null {
+    const row = this.db
+      .prepare(`SELECT value FROM commissioner_settings WHERE key = @key`)
+      .get({ key: ACTIVE_LEAGUE_SETTING_KEY }) as { value: string } | undefined;
+    return row?.value ?? null;
+  }
+
+  setActiveLeagueId(leagueId: string): void {
+    if (!this.getLeague(leagueId)) {
+      throw new Error(`Unknown league: ${leagueId}`);
+    }
+    this.db
+      .prepare(
+        `INSERT OR REPLACE INTO commissioner_settings (key, value) VALUES (@key, @value)`
+      )
+      .run({ key: ACTIVE_LEAGUE_SETTING_KEY, value: leagueId });
+  }
+
+  deleteDynastyScopedData(dynastyId: string): void {
+    this.db.prepare(`DELETE FROM team_tenures WHERE dynasty_id = @dynastyId`).run({ dynastyId });
+    this.db.prepare(`DELETE FROM roster_imports WHERE dynasty_id = @dynastyId`).run({ dynastyId });
+    this.db.prepare(`DELETE FROM published_batches WHERE dynasty_id = @dynastyId`).run({ dynastyId });
+    this.db
+      .prepare(`DELETE FROM commissioner_dynasty_state WHERE dynasty_id = @dynastyId`)
+      .run({ dynastyId });
   }
 }

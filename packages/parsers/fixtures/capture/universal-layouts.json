@@ -1,0 +1,137 @@
+{
+  "notes": [
+    "Universal screen structure reference for College Football 26 capture parsing.",
+    "Do not use this file as import data. It describes reusable UI layout and column schemas only.",
+    "Team names, player names, ratings, opponents, scores, records, and rankings must come from OCR/manual entry for each upload."
+  ],
+  "rosterByPosition": {
+    "screenKind": "roster_by_position",
+    "sharedColumns": [
+      { "key": "redshirt", "header": "RS", "kind": "icon" },
+      { "key": "name", "header": "NAME", "kind": "text" },
+      { "key": "year", "header": "YEAR", "kind": "text" },
+      { "key": "position", "header": "POS", "kind": "text" },
+      { "key": "overall", "header": "OVR", "kind": "number", "sortActive": true }
+    ],
+    "ratingColumnSets": {
+      "qb": [
+        { "key": "speed", "header": "SPD", "kind": "number", "ratingCode": "SPD" },
+        { "key": "acceleration", "header": "ACC", "kind": "number", "ratingCode": "ACC" },
+        { "key": "agility", "header": "AGI", "kind": "number", "ratingCode": "AGI" },
+        { "key": "changeOfDirection", "header": "COD", "kind": "number", "ratingCode": "COD" },
+        { "key": "strength", "header": "STR", "kind": "number", "ratingCode": "STR" },
+        { "key": "awareness", "header": "AWR", "kind": "number", "ratingCode": "AWR" },
+        { "key": "throwPower", "header": "THP", "kind": "number", "ratingCode": "THP" },
+        { "key": "shortAccuracy", "header": "SAC", "kind": "number", "ratingCode": "SAC" }
+      ],
+      "skillOffense": [
+        { "key": "speed", "header": "SPD", "kind": "number", "ratingCode": "SPD" },
+        { "key": "acceleration", "header": "ACC", "kind": "number", "ratingCode": "ACC" },
+        { "key": "agility", "header": "AGI", "kind": "number", "ratingCode": "AGI" },
+        { "key": "changeOfDirection", "header": "COD", "kind": "number", "ratingCode": "COD" },
+        { "key": "strength", "header": "STR", "kind": "number", "ratingCode": "STR" },
+        { "key": "awareness", "header": "AWR", "kind": "number", "ratingCode": "AWR" },
+        { "key": "carrying", "header": "CAR", "kind": "number", "ratingCode": "CAR" },
+        { "key": "ballCarrierVision", "header": "BCV", "kind": "number", "ratingCode": "BCV" }
+      ],
+      "receiverTightEnd": [
+        { "key": "speed", "header": "SPD", "kind": "number", "ratingCode": "SPD" },
+        { "key": "acceleration", "header": "ACC", "kind": "number", "ratingCode": "ACC" },
+        { "key": "agility", "header": "AGI", "kind": "number", "ratingCode": "AGI" },
+        { "key": "changeOfDirection", "header": "COD", "kind": "number", "ratingCode": "COD" },
+        { "key": "strength", "header": "STR", "kind": "number", "ratingCode": "STR" },
+        { "key": "awareness", "header": "AWR", "kind": "number", "ratingCode": "AWR" },
+        { "key": "catching", "header": "CTH", "kind": "number", "ratingCode": "CTH" },
+        { "key": "catchInTraffic", "header": "CIT", "kind": "number", "ratingCode": "CIT" }
+      ],
+      "offensiveLine": [
+        { "key": "speed", "header": "SPD", "kind": "number", "ratingCode": "SPD" },
+        { "key": "acceleration", "header": "ACC", "kind": "number", "ratingCode": "ACC" },
+        { "key": "agility", "header": "AGI", "kind": "number", "ratingCode": "AGI" },
+        { "key": "changeOfDirection", "header": "COD", "kind": "number", "ratingCode": "COD" },
+        { "key": "strength", "header": "STR", "kind": "number", "ratingCode": "STR" },
+        { "key": "awareness", "header": "AWR", "kind": "number", "ratingCode": "AWR" },
+        { "key": "passBlock", "header": "PBK", "kind": "number", "ratingCode": "PBK" },
+        { "key": "passBlockPower", "header": "PBP", "kind": "number", "ratingCode": "PBP" }
+      ],
+      "defensiveLine": [
+        { "key": "speed", "header": "SPD", "kind": "number", "ratingCode": "SPD" },
+        { "key": "acceleration", "header": "ACC", "kind": "number", "ratingCode": "ACC" },
+        { "key": "agility", "header": "AGI", "kind": "number", "ratingCode": "AGI" },
+        { "key": "changeOfDirection", "header": "COD", "kind": "number", "ratingCode": "COD" },
+        { "key": "strength", "header": "STR", "kind": "number", "ratingCode": "STR" },
+        { "key": "awareness", "header": "AWR", "kind": "number", "ratingCode": "AWR" },
+        { "key": "playRecognition", "header": "PRC", "kind": "number", "ratingCode": "PRC" },
+        { "key": "powerMoves", "header": "PMV", "kind": "number", "ratingCode": "PMV" }
+      ],
+      "linebacker": [
+        { "key": "speed", "header": "SPD", "kind": "number", "ratingCode": "SPD" },
+        { "key": "acceleration", "header": "ACC", "kind": "number", "ratingCode": "ACC" },
+        { "key": "agility", "header": "AGI", "kind": "number", "ratingCode": "AGI" },
+        { "key": "changeOfDirection", "header": "COD", "kind": "number", "ratingCode": "COD" },
+        { "key": "strength", "header": "STR", "kind": "number", "ratingCode": "STR" },
+        { "key": "awareness", "header": "AWR", "kind": "number", "ratingCode": "AWR" },
+        { "key": "playRecognition", "header": "PRC", "kind": "number", "ratingCode": "PRC" },
+        { "key": "tackle", "header": "TAK", "kind": "number", "ratingCode": "TAK" }
+      ],
+      "defensiveBack": [
+        { "key": "speed", "header": "SPD", "kind": "number", "ratingCode": "SPD" },
+        { "key": "acceleration", "header": "ACC", "kind": "number", "ratingCode": "ACC" },
+        { "key": "agility", "header": "AGI", "kind": "number", "ratingCode": "AGI" },
+        { "key": "changeOfDirection", "header": "COD", "kind": "number", "ratingCode": "COD" },
+        { "key": "strength", "header": "STR", "kind": "number", "ratingCode": "STR" },
+        { "key": "awareness", "header": "AWR", "kind": "number", "ratingCode": "AWR" },
+        { "key": "playRecognition", "header": "PRC", "kind": "number", "ratingCode": "PRC" },
+        { "key": "manCoverage", "header": "MCV", "kind": "number", "ratingCode": "MCV" }
+      ],
+      "kickerPunter": [
+        { "key": "kickPower", "header": "KPW", "kind": "number", "ratingCode": "KPW" },
+        { "key": "kickAccuracy", "header": "KAC", "kind": "number", "ratingCode": "KAC" },
+        { "key": "speed", "header": "SPD", "kind": "number", "ratingCode": "SPD" },
+        { "key": "tackle", "header": "TAK", "kind": "number", "ratingCode": "TAK" },
+        { "key": "awareness", "header": "AWR", "kind": "number", "ratingCode": "AWR" },
+        { "key": "power", "header": "POW", "kind": "number", "ratingCode": "POW" },
+        { "key": "acceleration", "header": "ACC", "kind": "number", "ratingCode": "ACC" },
+        { "key": "pursuit", "header": "PUR", "kind": "number", "ratingCode": "PUR" }
+      ]
+    },
+    "detailPanelFields": [
+      "fullName",
+      "position",
+      "jerseyNumber",
+      "overall",
+      "archetype",
+      "classYear",
+      "height",
+      "weight",
+      "hometown",
+      "physicalAbilities",
+      "mentalAbilities",
+      "developmentTrait"
+    ]
+  },
+  "teamSchedule": {
+    "screenKind": "team_schedule",
+    "columns": [
+      { "key": "week", "header": "WEEK", "kind": "text" },
+      { "key": "date", "header": "DATE", "kind": "text" },
+      { "key": "site", "header": "SITE", "kind": "text" },
+      { "key": "opponent", "header": "OPPONENT", "kind": "text" },
+      { "key": "timeOrResult", "header": "TIME(ET)/RESULT", "kind": "text" },
+      { "key": "opponentRecord", "header": "OPP W-L", "kind": "text" },
+      { "key": "tv", "header": "TV", "kind": "icon" },
+      { "key": "forceWin", "header": "FORCE WIN", "kind": "icon" }
+    ]
+  },
+  "top25Rankings": {
+    "screenKind": "top25_rankings",
+    "columns": [
+      { "key": "rank", "header": "RANK", "kind": "number" },
+      { "key": "previousRank", "header": "LW", "kind": "text" },
+      { "key": "teamName", "header": "NAME/VOTES", "kind": "text" },
+      { "key": "record", "header": "W-L", "kind": "text" },
+      { "key": "lastWeekResult", "header": "LAST WEEK", "kind": "text" },
+      { "key": "thisWeekOpponent", "header": "THIS WEEK", "kind": "text" }
+    ]
+  }
+}

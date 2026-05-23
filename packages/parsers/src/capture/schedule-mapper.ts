@@ -1,15 +1,22 @@
 import type { ScheduleGame, Season, SeasonStanding } from '@ncaa/domain';
-import type { ExtractedScheduleTableRow, ScheduleCaptureFixture } from './types.js';
+import type { CaptureImportWarning, ExtractedScheduleTableRow, ScheduleCaptureFixture } from './types.js';
+import { resolveTeamKeyFromName, teamIdFromKey } from './team-resolver.js';
+
+const BYE_TEAM_ID = 'team-bye';
 
 export interface ScheduleCaptureImport {
   season: Season;
+  teamId: string;
   fixtureId: string;
   partial: boolean;
   sourceLabel: string;
+  warnings?: CaptureImportWarning[];
 }
 
-function teamIdFromKey(teamKey: string): string {
-  return `team-${teamKey}`;
+export interface ScheduleCaptureImportOptions {
+  dynastyId?: string;
+  teamId?: string;
+  teamName?: string;
 }
 
 function parseResult(result: string | undefined): { homeScore?: number; awayScore?: number; isPlayed: boolean } {
@@ -17,8 +24,11 @@ function parseResult(result: string | undefined): { homeScore?: number; awayScor
   const match = result.match(/^([WL])\s*(\d+)-(\d+)$/i);
   if (!match) return { isPlayed: false };
 
-  const teamScore = Number(match[2]);
-  const opponentScore = Number(match[3]);
+  const firstScore = Number(match[2]);
+  const secondScore = Number(match[3]);
+  const teamWon = match[1].toUpperCase() === 'W';
+  const teamScore = teamWon ? firstScore : secondScore;
+  const opponentScore = teamWon ? secondScore : firstScore;
   return {
     homeScore: teamScore,
     awayScore: opponentScore,
@@ -31,8 +41,21 @@ function rowToGame(
   teamId: string,
   seasonId: string
 ): ScheduleGame | null {
-  if (row.site === 'bye') return null;
-  const opponentTeamId = row.opponentTeamKey ? teamIdFromKey(row.opponentTeamKey) : undefined;
+  if (row.site === 'bye') {
+    return {
+      id: `${seasonId}-w${row.week}-bye-${teamId}`,
+      seasonId,
+      week: row.week,
+      date: row.date,
+      homeTeamId: teamId,
+      awayTeamId: BYE_TEAM_ID,
+      isBye: true,
+      isPlayed: false,
+    };
+  }
+  const opponentKey =
+    row.opponentTeamKey ?? (row.opponentName ? resolveTeamKeyFromName(row.opponentName) : undefined);
+  const opponentTeamId = opponentKey ? teamIdFromKey(opponentKey) : undefined;
   if (!opponentTeamId) return null;
 
   const parsed = parseResult(row.timeOrResult);
@@ -69,6 +92,7 @@ function calculateStandings(games: ScheduleGame[]): SeasonStanding[] {
   };
 
   for (const game of games) {
+    if (game.isBye) continue;
     ensure(game.homeTeamId);
     ensure(game.awayTeamId);
     if (!game.isPlayed || game.homeScore === undefined || game.awayScore === undefined) continue;
@@ -87,9 +111,12 @@ function calculateStandings(games: ScheduleGame[]): SeasonStanding[] {
   return Array.from(standings.values()).sort((a, b) => b.wins - a.wins || a.losses - b.losses);
 }
 
-export function scheduleCaptureFixtureToImport(fixture: ScheduleCaptureFixture): ScheduleCaptureImport {
+export function scheduleCaptureFixtureToImport(
+  fixture: ScheduleCaptureFixture,
+  options: ScheduleCaptureImportOptions = {}
+): ScheduleCaptureImport {
   const { expected } = fixture;
-  const teamId = teamIdFromKey(expected.teamContext.teamKey);
+  const teamId = options.teamId ?? teamIdFromKey(expected.teamContext.teamKey ?? 'captured-team');
   const seasonId = `season-${expected.teamContext.seasonYear}`;
   const schedule = expected.table.rows
     .map((row) => rowToGame(row, teamId, seasonId))
@@ -98,14 +125,17 @@ export function scheduleCaptureFixtureToImport(fixture: ScheduleCaptureFixture):
   return {
     season: {
       id: seasonId,
-      dynastyId: 'dynasty-demo',
+      dynastyId: options.dynastyId ?? 'dynasty-demo',
       year: expected.teamContext.seasonYear,
-      label: `${expected.teamContext.seasonYear} ${expected.teamContext.name} Schedule Capture`,
+      label: `${expected.teamContext.seasonYear} ${
+        options.teamName ?? expected.teamContext.name
+      } Schedule Capture`,
       schedule,
       standings: calculateStandings(schedule),
     },
+    teamId,
     fixtureId: expected.fixtureId,
     partial: expected.partial,
-    sourceLabel: `${expected.teamContext.name} schedule screenshot fixture`,
+    sourceLabel: `${options.teamName ?? expected.teamContext.name} schedule screenshot fixture`,
   };
 }

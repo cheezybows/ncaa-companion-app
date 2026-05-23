@@ -297,6 +297,27 @@ nav {
   font-size: 1.8rem;
 }
 
+.split-metric-value,
+.split-metric-labels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.split-metric-value strong:last-child,
+.split-metric-labels small:last-child {
+  text-align: right;
+}
+
+.split-metric-labels small {
+  color: #94a3b8;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .progression-timeline {
   display: grid;
   gap: 0.75rem;
@@ -437,8 +458,8 @@ th {
 
 .sortable-header {
   display: inline-flex;
-  gap: 0.35rem;
   align-items: center;
+  gap: 0.25rem;
   padding: 0;
   color: #93c5fd;
   background: transparent;
@@ -449,8 +470,54 @@ th {
   text-transform: inherit;
 }
 
+.sortable-label {
+  display: inline-block;
+}
+
+.sort-indicator {
+  display: inline-flex;
+  width: 0.8em;
+  justify-content: center;
+  opacity: 0;
+}
+
+.sort-indicator.active {
+  opacity: 1;
+}
+
 td {
   color: #e5e7eb;
+}
+
+.key-stat-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.key-stat-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.28rem;
+  padding: 0.28rem 0.45rem;
+  border-radius: 999px;
+  color: #dbeafe;
+  background: rgba(147, 197, 253, 0.1);
+  border: 1px solid rgba(147, 197, 253, 0.16);
+  white-space: nowrap;
+}
+
+.key-stat-chip em {
+  color: #93c5fd;
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.key-stat-chip strong {
+  color: #f8fafc;
+  font-size: 0.88rem;
 }
 
 .sign-in-page {
@@ -595,7 +662,32 @@ tbody tr:hover td {
 }
 
 .user-game-row td {
-  background: rgba(134, 239, 172, 0.1);
+  background:
+    linear-gradient(
+      to bottom,
+      transparent 0.22rem,
+      rgba(103, 232, 249, 0.1) 0.22rem,
+      rgba(103, 232, 249, 0.1) calc(100% - 0.22rem),
+      transparent calc(100% - 0.22rem)
+    );
+  border-color: rgba(103, 232, 249, 0.2);
+}
+
+.user-game-row td:first-child {
+  border-left: 3px solid rgba(103, 232, 249, 0.72);
+}
+
+.user-game-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.22rem 0.5rem;
+  color: #cffafe;
+  background: rgba(8, 145, 178, 0.24);
+  border: 1px solid rgba(103, 232, 249, 0.28);
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .ranked-user-row td {

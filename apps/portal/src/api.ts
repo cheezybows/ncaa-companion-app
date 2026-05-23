@@ -1,5 +1,12 @@
 import type {
   AuthSession,
+  AppUser,
+  Dynasty,
+  DynastyCheckpoint,
+  PlayerCatalogEntry,
+  PlayerProgression,
+  PostseasonResult,
+  RankingSnapshot,
   Roster,
   SyncBatch,
   Team,
@@ -16,10 +23,14 @@ import {
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8787';
 
 export interface DynastyBundle {
-  dynasty: typeof PLACEHOLDER_DYNASTY;
+  dynasty: Dynasty;
   teams: Team[];
   rosters: Record<string, Roster>;
-  progression: typeof PLACEHOLDER_PROGRESSION;
+  progression: PlayerProgression[];
+  checkpoints?: DynastyCheckpoint[];
+  playerCatalog?: PlayerCatalogEntry[];
+  postseasonResults?: PostseasonResult[];
+  rankings?: RankingSnapshot[];
   syncBatches: SyncBatch[];
   importState: unknown;
 }
@@ -50,19 +61,24 @@ export async function signIn(userId: string, password: string): Promise<AuthSess
   }
 }
 
+export async function fetchSession(userId: string): Promise<AuthSession> {
+  return request<AuthSession>(`/auth/session/${userId}`);
+}
+
 export async function fetchDynastyBundle(dynastyId: string) {
-  try {
-    return await request<DynastyBundle>(`/dynasties/${dynastyId}`);
-  } catch {
-    return {
-      dynasty: PLACEHOLDER_DYNASTY,
-      teams: PLACEHOLDER_TEAMS,
-      rosters: PLACEHOLDER_ROSTERS,
-      progression: PLACEHOLDER_PROGRESSION,
-      syncBatches: [],
-      importState: null,
-    } satisfies DynastyBundle;
-  }
+  return request<DynastyBundle>(`/dynasties/${dynastyId}`);
+}
+
+export function fallbackDynastyBundle(): DynastyBundle {
+  return {
+    dynasty: PLACEHOLDER_DYNASTY,
+    teams: PLACEHOLDER_TEAMS,
+    rosters: PLACEHOLDER_ROSTERS,
+    progression: PLACEHOLDER_PROGRESSION,
+    rankings: PLACEHOLDER_DYNASTY.rankings ?? [],
+    syncBatches: [],
+    importState: null,
+  };
 }
 
 export async function fetchClaims(dynastyId: string): Promise<TeamClaim[]> {
@@ -133,6 +149,15 @@ export async function fetchTenures(userId: string, dynastyId: string): Promise<T
   } catch {
     const { getTenuresForUser } = await import('@ncaa/domain');
     return getTenuresForUser(userId, dynastyId);
+  }
+}
+
+export async function fetchUsers(): Promise<AppUser[]> {
+  try {
+    return await request<AppUser[]>('/users');
+  } catch {
+    const { DEMO_USERS } = await import('@ncaa/domain');
+    return DEMO_USERS;
   }
 }
 

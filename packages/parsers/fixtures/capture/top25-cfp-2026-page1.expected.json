@@ -1,0 +1,22 @@
+{
+  "fixtureId": "top25-cfp-2026-page1",
+  "screenKind": "top25_rankings",
+  "partial": true,
+  "seasonYear": 2026,
+  "pollType": "top25",
+  "entries": [
+    { "rank": 1, "teamKey": "virginia-tech", "teamName": "Virginia Tech", "wins": 13, "losses": 0 },
+    { "rank": 2, "teamKey": "oregon", "teamName": "Oregon", "wins": 12, "losses": 2 },
+    { "rank": 3, "teamKey": "miami", "teamName": "Miami", "wins": 12, "losses": 1 },
+    { "rank": 4, "teamKey": "kansas", "teamName": "Kansas", "wins": 12, "losses": 1 },
+    { "rank": 5, "teamKey": "east-carolina", "teamName": "East Carolina", "wins": 12, "losses": 1 },
+    { "rank": 6, "teamKey": "texas", "teamName": "Texas", "wins": 13, "losses": 1 },
+    { "rank": 7, "teamKey": "kentucky", "teamName": "Kentucky", "wins": 13, "losses": 2 },
+    { "rank": 8, "teamKey": "temple", "teamName": "Temple", "wins": 12, "losses": 2 },
+    { "rank": 9, "teamKey": "iowa", "teamName": "Iowa", "wins": 11, "losses": 3 },
+    { "rank": 10, "teamKey": "notre-dame", "teamName": "Notre Dame", "wins": 10, "losses": 3 },
+    { "rank": 11, "teamKey": "florida-state", "teamName": "Florida State", "wins": 10, "losses": 3 },
+    { "rank": 12, "teamKey": "western-kentucky", "teamName": "Western Kentucky", "wins": 12, "losses": 2 },
+    { "rank": 13, "teamKey": "ohio-state", "teamName": "Ohio State", "wins": 11, "losses": 2 }
+  ]
+}

@@ -1,4 +1,4 @@
-export type CaptureScreenKind = 'roster_by_position' | 'team_schedule';
+export type CaptureScreenKind = 'roster_by_position' | 'team_schedule' | 'top25_rankings';
 
 export interface CaptureRegion {
   x: number;
@@ -79,8 +79,12 @@ export interface RosterCaptureExpected {
   fixtureId: string;
   screenKind: CaptureScreenKind;
   partial: boolean;
-  teamContext: {
-    teamKey: string;
+  /**
+   * Source-screen context from the screenshot. Import callers may override the
+   * destination team based on the team selected in the UI.
+   */
+  teamContext?: {
+    teamKey?: string;
     name: string;
     selectedPosition: string;
   };
@@ -133,7 +137,7 @@ export interface ScheduleCaptureExpected {
   screenKind: 'team_schedule';
   partial: boolean;
   teamContext: {
-    teamKey: string;
+    teamKey?: string;
     name: string;
     seasonYear: number;
   };
@@ -147,4 +151,97 @@ export interface ScheduleCaptureFixture {
   expected: ScheduleCaptureExpected;
   imagePath: string;
   imagePresent: boolean;
+}
+
+export interface Top25CaptureMeta {
+  fixtureId: string;
+  screenKind: 'top25_rankings';
+  game: string;
+  partial: boolean;
+  notes: string[];
+  seasonYear: number;
+  pollType: 'top25';
+  table: {
+    visibleRowCount: number;
+    hasMoreRows: boolean;
+  };
+  imageFile: string;
+}
+
+export interface ExtractedRankingEntry {
+  rank: number;
+  previousRank?: number;
+  teamKey: string;
+  teamName: string;
+  wins: number;
+  losses: number;
+  lastWeekResult?: string;
+  thisWeekOpponent?: string;
+  movement?: 'up' | 'down' | 'same';
+}
+
+export interface Top25CaptureExpected {
+  fixtureId: string;
+  screenKind: 'top25_rankings';
+  partial: boolean;
+  seasonYear: number;
+  pollType: 'top25';
+  entries: ExtractedRankingEntry[];
+}
+
+export interface Top25CaptureFixture {
+  meta: Top25CaptureMeta;
+  expected: Top25CaptureExpected;
+  imagePath: string;
+  imagePresent: boolean;
+}
+
+export interface CaptureOcrBBox {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+export interface CaptureOcrWord {
+  text: string;
+  confidence: number;
+  bbox: CaptureOcrBBox;
+}
+
+export interface CaptureOcrPageResult {
+  imagePath: string;
+  text: string;
+  words: CaptureOcrWord[];
+  confidence: number;
+}
+
+export interface CaptureImportWarning {
+  code: string;
+  message: string;
+  rowKey?: string;
+}
+
+export interface CaptureOcrDraft<T> {
+  data: T;
+  warnings: CaptureImportWarning[];
+  partial: boolean;
+}
+
+export interface UniversalCaptureLayouts {
+  notes: string[];
+  rosterByPosition: {
+    screenKind: 'roster_by_position';
+    sharedColumns: CaptureTableColumn[];
+    ratingColumnSets: Record<string, CaptureTableColumn[]>;
+    detailPanelFields: string[];
+  };
+  teamSchedule: {
+    screenKind: 'team_schedule';
+    columns: CaptureTableColumn[];
+  };
+  top25Rankings: {
+    screenKind: 'top25_rankings';
+    columns: CaptureTableColumn[];
+  };
 }

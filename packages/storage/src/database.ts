@@ -99,6 +99,35 @@ CREATE TABLE IF NOT EXISTS team_conference_overrides (
 CREATE INDEX IF NOT EXISTS idx_team_tenures_dynasty ON team_tenures(dynasty_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_roster_imports_team ON roster_imports(team_id, imported_at);
 CREATE INDEX IF NOT EXISTS idx_published_batches_dynasty ON published_batches(dynasty_id, created_at);
+
+CREATE TABLE IF NOT EXISTS commissioner_dynasty_state (
+  dynasty_id TEXT PRIMARY KEY,
+  current_season_year INTEGER NOT NULL,
+  archived_seasons_json TEXT NOT NULL DEFAULT '[]',
+  archived_rankings_json TEXT NOT NULL DEFAULT '[]',
+  team_roster_snapshots_json TEXT NOT NULL DEFAULT '[]',
+  checkpoints_json TEXT NOT NULL DEFAULT '[]',
+  player_catalog_json TEXT NOT NULL DEFAULT '[]',
+  postseason_results_json TEXT NOT NULL DEFAULT '[]',
+  schedule_imports_json TEXT NOT NULL DEFAULT '[]',
+  top25_imports_json TEXT NOT NULL DEFAULT '[]',
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS commissioner_leagues (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  starting_season_year INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  commissioner_user_id TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS commissioner_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 `;
 
 export function openDatabase(dbPath: string): Database.Database {
@@ -109,6 +138,9 @@ export function openDatabase(dbPath: string): Database.Database {
   ensureColumn(db, 'commissioner_users', 'password_updated_at', 'TEXT');
   ensureColumn(db, 'commissioner_users', 'password_reset_required', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'commissioner_users', 'temporary_password', 'TEXT');
+  ensureColumn(db, 'commissioner_dynasty_state', 'checkpoints_json', "TEXT NOT NULL DEFAULT '[]'");
+  ensureColumn(db, 'commissioner_dynasty_state', 'player_catalog_json', "TEXT NOT NULL DEFAULT '[]'");
+  ensureColumn(db, 'commissioner_dynasty_state', 'postseason_results_json', "TEXT NOT NULL DEFAULT '[]'");
   return db;
 }
 

@@ -7,7 +7,28 @@ import {
   PLACEHOLDER_ROSTERS,
   PLACEHOLDER_TEAMS,
 } from '@ncaa/domain';
+import { DEMO_DYNASTY_ID } from '@ncaa/domain';
 import { MemoryCommissionerRepository } from './memory-repositories.js';
+
+describe('MemoryCommissionerRepository dynasty state', () => {
+  it('round-trips commissioner dynasty state', () => {
+    const repository = new MemoryCommissionerRepository();
+    repository.saveDynastyState({
+      dynastyId: 'dynasty-demo',
+      currentSeasonYear: 2027,
+      archivedSeasons: [],
+      archivedRankings: [],
+      teamRosterSnapshots: [],
+      checkpoints: [],
+      playerCatalog: [],
+      postseasonResults: [],
+      scheduleImports: [],
+      top25Imports: [],
+    });
+    const state = repository.getDynastyState('dynasty-demo', 2026);
+    expect(state.currentSeasonYear).toBe(2027);
+  });
+});
 
 describe('MemoryCommissionerRepository', () => {
   it('persists tenures and publish history with idempotency keys', () => {
@@ -49,8 +70,60 @@ describe('MemoryCommissionerRepository', () => {
       team,
       roster,
       sourceLabel: 'fixture-test',
-      fixtureId: 'roster-cb-oregon-state',
+      fixtureId: 'roster-import-test',
     });
     expect(repository.listRosterImports('dynasty-demo')).toHaveLength(1);
+  });
+});
+
+describe('MemoryCommissionerRepository leagues', () => {
+  it('creates leagues, tracks active league, and deletes dynasty-scoped data', () => {
+    const repository = new MemoryCommissionerRepository();
+    const league = repository.createLeague({
+      name: 'Test League',
+      startingSeasonYear: 2028,
+      commissionerUserId: 'user-admin',
+    });
+    expect(league.id).toMatch(/^dynasty-test-league/);
+    repository.setActiveLeagueId(league.id);
+    expect(repository.getActiveLeagueId()).toBe(league.id);
+
+    repository.saveTenure({
+      id: 'tenure-league',
+      careerId: 'career-league',
+      userId: 'user-coach-carter',
+      dynastyId: league.id,
+      teamId: 'team-alabama',
+      role: 'coach',
+      status: 'active',
+      startSeasonYear: 2028,
+      label: 'League assignment',
+    });
+    repository.saveRosterImport({
+      dynastyId: league.id,
+      team: PLACEHOLDER_TEAMS[0]!,
+      roster: PLACEHOLDER_ROSTERS[PLACEHOLDER_TEAMS[0]!.id]!,
+      sourceLabel: 'fixture-league',
+    });
+
+    expect(repository.listTenures(league.id)).toHaveLength(1);
+    expect(repository.listRosterImports(league.id)).toHaveLength(1);
+
+    repository.deleteLeague(league.id);
+    expect(repository.getLeague(league.id)).toBeNull();
+    expect(repository.listTenures(league.id)).toHaveLength(0);
+    expect(repository.listRosterImports(league.id)).toHaveLength(0);
+    expect(repository.getActiveLeagueId()).toBeNull();
+  });
+
+  it('bootstraps a default demo league id when requested', () => {
+    const repository = new MemoryCommissionerRepository();
+    const league = repository.createLeague({
+      id: DEMO_DYNASTY_ID,
+      name: 'Demo League',
+      startingSeasonYear: 2026,
+    });
+    expect(league.id).toBe(DEMO_DYNASTY_ID);
+    expect(repository.listLeagues()).toHaveLength(1);
   });
 });

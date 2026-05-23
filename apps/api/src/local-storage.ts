@@ -83,10 +83,44 @@ function getMirrorPath(dbPath: string | undefined): string | undefined {
 }
 
 export function getLocalCommissionerRepository(): LocalCommissionerRepository | null {
-  if (repository !== undefined) return repository;
+  if (repository) return repository;
 
   const dbPath = process.env.NCAA_DESKTOP_DB_PATH;
   const mirrorPath = getMirrorPath(dbPath);
+  const preferSqlite = process.env.NCAA_API_PREFER_SQLITE === '1';
+
+  // Desktop writes hosted-state.json on publish; prefer it unless explicitly overridden.
+  // Avoids Node ABI mismatches between the API process and Electron's SQLite build.
+  if (!preferSqlite && mirrorPath && existsSync(mirrorPath)) {
+    repository = new JsonMirrorRepository(mirrorPath);
+    status = { mode: 'json', path: mirrorPath };
+    return repository;
+  }
+
+  if (dbPath && existsSync(dbPath)) {
+    try {
+      const BetterSqlite3 = require('better-sqlite3-node');
+      const db = new BetterSqlite3(dbPath);
+      db.pragma('journal_mode = WAL');
+      repository = new CommissionerRepository(db);
+      status = { mode: 'sqlite', path: dbPath };
+      return repository;
+    } catch (error) {
+      if (mirrorPath && existsSync(mirrorPath)) {
+        repository = new JsonMirrorRepository(mirrorPath);
+        status = { mode: 'json', path: mirrorPath, reason: String(error) };
+        return repository;
+      }
+      repository = null;
+      status = {
+        mode: 'memory',
+        reason: `SQLite native module failed and hosted mirror was not found: ${String(error)}`,
+        path: dbPath,
+      };
+      return repository;
+    }
+  }
+
   if (mirrorPath && existsSync(mirrorPath)) {
     repository = new JsonMirrorRepository(mirrorPath);
     status = { mode: 'json', path: mirrorPath };
@@ -101,31 +135,18 @@ export function getLocalCommissionerRepository(): LocalCommissionerRepository | 
     return repository;
   }
 
-  try {
-    const BetterSqlite3 = require('better-sqlite3-node');
-    const db = new BetterSqlite3(dbPath);
-    db.pragma('journal_mode = WAL');
-    repository = new CommissionerRepository(db);
-    status = { mode: 'sqlite', path: dbPath };
-    return repository;
-  } catch (error) {
-    if (mirrorPath && existsSync(mirrorPath)) {
-      repository = new JsonMirrorRepository(mirrorPath);
-      status = { mode: 'json', path: mirrorPath, reason: String(error) };
-      return repository;
-    }
-    repository = null;
-    status = {
-      mode: 'memory',
-      reason: `SQLite native module failed and hosted mirror was not found: ${String(error)}`,
-      path: dbPath,
-    };
-    return repository;
-  }
+  repository = null;
+  status = { mode: 'memory', reason: 'storage not initialized' };
+  return repository;
 }
 
 export function getLocalStorageStatus() {
   getLocalCommissionerRepository();
   return status ?? { mode: 'memory' as const, reason: 'storage not initialized' };
+}
+
+export function resetLocalStorageForTests(): void {
+  repository = undefined;
+  status = undefined;
 }
 

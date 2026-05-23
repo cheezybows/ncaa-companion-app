@@ -1,5 +1,5 @@
 import { writeFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import type { OpenDialogOptions, SaveDialogOptions } from 'electron';
@@ -9,8 +9,14 @@ import {
   PLACEHOLDER_ROSTERS,
   PLACEHOLDER_TEAMS,
 } from '@ncaa/domain';
-import type { Roster, Team } from '@ncaa/domain';
+import type { Team } from '@ncaa/domain';
+import {
+  importRosterFromOcrPages,
+  importScheduleFromOcrPages,
+  importTop25FromOcrPages,
+} from '@ncaa/parsers';
 import { CommissionerService } from './commissioner-service.js';
+import { recognizeScreenshots, terminateOcrWorker } from './ocr-service.js';
 import { ScanService } from './scanner-service.js';
 import type {
   AppSummary,
@@ -18,6 +24,7 @@ import type {
   ScanResult,
   ScanStore,
   ScheduleCaptureImport,
+  Top25CaptureImport,
 } from './types.js';
 import type { CommissionerStore } from './commissioner-service.js';
 
@@ -36,19 +43,43 @@ function logStartup(message: string): void {
   console.log(`[desktop] ${message}`);
 }
 
+function logCapture(message: string): void {
+  console.log(`[capture] ${message}`);
+}
+
+function logCaptureWarnings(context: string, warnings: Array<{ code: string; message: string; rowKey?: string }> | undefined): void {
+  if (!warnings?.length) {
+    logCapture(`${context}: warnings=0`);
+    return;
+  }
+
+  logCapture(`${context}: warnings=${warnings.length}`);
+  for (const warning of warnings.slice(0, 10)) {
+    console.warn(
+      `[capture] ${context} warning${warning.rowKey ? ` row=${warning.rowKey}` : ''} code=${warning.code}: ${warning.message}`
+    );
+  }
+  if (warnings.length > 10) {
+    console.warn(`[capture] ${context}: ${warnings.length - 10} additional warnings omitted`);
+  }
+}
+
+function logOcrPages(context: string, filePaths: string[], pages: Array<{ text: string; words: unknown[]; confidence: number }>): void {
+  logCapture(`${context}: selectedFiles=${filePaths.length}`);
+  filePaths.forEach((filePath, index) => logCapture(`${context}: file[${index}]=${filePath}`));
+  logCapture(
+    `${context}: ocrPages=${pages.length} totalWords=${pages.reduce((sum, page) => sum + page.words.length, 0)} totalChars=${pages.reduce((sum, page) => sum + page.text.length, 0)} avgConfidence=${
+      pages.length === 0
+        ? '0.0'
+        : (pages.reduce((sum, page) => sum + page.confidence, 0) / pages.length).toFixed(1)
+    }`
+  );
+}
+
 function getRendererEntry(): string {
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
   if (devServerUrl) return devServerUrl;
   return `file://${join(__dirname, '../../../web/dist/index.html')}`;
-}
-
-function mostCommonTeamId(games: Array<{ homeTeamId: string; awayTeamId: string }>): string {
-  const counts = new Map<string, number>();
-  for (const game of games) {
-    counts.set(game.homeTeamId, (counts.get(game.homeTeamId) ?? 0) + 1);
-    counts.set(game.awayTeamId, (counts.get(game.awayTeamId) ?? 0) + 1);
-  }
-  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
 }
 
 async function waitForAppReady(timeoutMs = 20000): Promise<void> {
@@ -81,6 +112,7 @@ async function initStorage(): Promise<void> {
     logStartup(`Using in-memory storage: ${String(error)}`);
   }
   commissionerService = new CommissionerService(commissionerStore, hostedStateMirrorPath);
+  await commissionerService.loadHostedStateMirror();
   await commissionerService.refreshUsers();
   await commissionerService.writeHostedStateMirror();
   logStartup(`Hosted state mirror ready (${hostedStateMirrorPath})`);
@@ -168,98 +200,151 @@ function registerIpc(): void {
     };
   }
 
-  function rosterForTeam(roster: Roster, teamId: string): Roster {
-    return {
-      ...roster,
-      teamId,
-      players: roster.players.map((player) => ({ ...player, teamId })),
-      depthChart: roster.depthChart.map((slot) => ({ ...slot })),
-      updatedAt: new Date().toISOString(),
-    };
-  }
-
   ipcMain.handle(
     'capture:import-roster-for-team',
     async (_event, input: { dynastyId: string; teamId: string }): Promise<RosterCaptureImport | null> => {
       const result = mainWindow
         ? await dialog.showOpenDialog(mainWindow, {
-            title: `Choose roster screenshot for ${teamForImport(input.teamId).name}`,
-            properties: ['openFile'],
+            title: `Choose roster screenshots for ${teamForImport(input.teamId).name}`,
+            properties: ['openFile', 'multiSelections'],
             filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp'] }],
           })
         : await dialog.showOpenDialog({
-            title: `Choose roster screenshot for ${teamForImport(input.teamId).name}`,
-            properties: ['openFile'],
+            title: `Choose roster screenshots for ${teamForImport(input.teamId).name}`,
+            properties: ['openFile', 'multiSelections'],
             filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp'] }],
           });
       if (result.canceled || !result.filePaths[0]) return null;
 
-      const { loadRosterCaptureFixture, rosterCaptureFixtureToImport } = await import('@ncaa/parsers');
-      const fixtureImport = rosterCaptureFixtureToImport(loadRosterCaptureFixture());
       const team = teamForImport(input.teamId);
-      const imported: RosterCaptureImport = {
-        ...fixtureImport,
+      logCapture(
+        `roster import started: dynastyId=${input.dynastyId} teamId=${input.teamId} team="${team.name}"`
+      );
+      const pages = await recognizeScreenshots(result.filePaths, { screenKind: 'roster_by_position' });
+      logOcrPages('roster import', result.filePaths, pages);
+      const { import: imported } = importRosterFromOcrPages(pages, {
+        dynastyId: input.dynastyId,
         team,
-        roster: rosterForTeam(fixtureImport.roster, input.teamId),
-        sourceLabel: `Roster screenshot import: ${basename(result.filePaths[0])}`,
-      };
-    commissionerService.saveRosterImport({
-      dynastyId: input.dynastyId,
-      team: imported.team,
-      roster: imported.roster,
-      sourceLabel: imported.sourceLabel,
-      fixtureId: imported.fixtureId,
-    });
-    return imported;
+      });
+      logCapture(
+        `roster import parsed: players=${imported.roster.players.length} partial=${imported.partial}`
+      );
+      logCaptureWarnings('roster import', imported.warnings);
+      commissionerService.saveRosterImport({
+        dynastyId: input.dynastyId,
+        team: imported.team,
+        roster: imported.roster,
+        sourceLabel: imported.sourceLabel,
+        fixtureId: imported.fixtureId,
+      });
+      logCapture(`roster import saved: teamId=${imported.team.id} players=${imported.roster.players.length}`);
+      return imported;
     }
   );
 
   ipcMain.handle('capture:import-schedule-for-team', async (_event, input: { dynastyId: string; teamId: string }): Promise<ScheduleCaptureImport | null> => {
     const result = mainWindow
       ? await dialog.showOpenDialog(mainWindow, {
-          title: `Choose schedule screenshot for ${teamForImport(input.teamId).name}`,
-          properties: ['openFile'],
+          title: `Choose schedule screenshots for ${teamForImport(input.teamId).name}`,
+          properties: ['openFile', 'multiSelections'],
           filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp'] }],
         })
       : await dialog.showOpenDialog({
-          title: `Choose schedule screenshot for ${teamForImport(input.teamId).name}`,
-          properties: ['openFile'],
+          title: `Choose schedule screenshots for ${teamForImport(input.teamId).name}`,
+          properties: ['openFile', 'multiSelections'],
           filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp'] }],
         });
     if (result.canceled || !result.filePaths[0]) return null;
 
-    const { loadScheduleCaptureFixture, scheduleCaptureFixtureToImport } = await import('@ncaa/parsers');
-    const fixtureImport = scheduleCaptureFixtureToImport(loadScheduleCaptureFixture());
-    const sourceTeamId = mostCommonTeamId(fixtureImport.season.schedule);
-    const imported: ScheduleCaptureImport = {
-      ...fixtureImport,
-      season: {
-        ...fixtureImport.season,
-        dynastyId: input.dynastyId,
-        schedule: fixtureImport.season.schedule.map((game) => ({
-          ...game,
-          homeTeamId: game.homeTeamId === sourceTeamId ? input.teamId : game.homeTeamId,
-          awayTeamId: game.awayTeamId === sourceTeamId ? input.teamId : game.awayTeamId,
-        })),
-        standings: fixtureImport.season.standings.map((standing) => ({
-          ...standing,
-          teamId: standing.teamId === sourceTeamId ? input.teamId : standing.teamId,
-        })),
-      },
-      sourceLabel: `Schedule screenshot import: ${basename(result.filePaths[0])}`,
-    };
+    const team = teamForImport(input.teamId);
+    logCapture(
+      `schedule import started: dynastyId=${input.dynastyId} teamId=${input.teamId} team="${team.name}"`
+    );
+    const pages = await recognizeScreenshots(result.filePaths, { screenKind: 'team_schedule' });
+    logOcrPages('schedule import', result.filePaths, pages);
+    const seasonYear = commissionerService.getCurrentSeasonYear();
+    const { import: imported } = importScheduleFromOcrPages(pages, {
+      dynastyId: input.dynastyId,
+      teamId: input.teamId,
+      teamName: team.name,
+      seasonYear,
+    });
+    logCapture(
+      `schedule import parsed: games=${imported.season.schedule.length} rowsYear=${imported.season.year} partial=${imported.partial}`
+    );
+    logCaptureWarnings('schedule import', imported.warnings);
     commissionerService.saveScheduleImport(imported);
+    logCapture(`schedule import saved: teamId=${imported.teamId} games=${imported.season.schedule.length}`);
     return imported;
   });
 
   ipcMain.handle('capture:list-schedule-imports', async () => commissionerService.listScheduleImports());
 
-  ipcMain.handle('commissioner:get-config', async () => ({
-    apiUrl: process.env.NCAA_API_URL ?? 'http://127.0.0.1:8787',
-    dynastyId: 'dynasty-demo',
-    commissionerUserId: 'user-admin',
-    hostedStateMirrorPath,
-  }));
+  ipcMain.handle(
+    'capture:import-top25',
+    async (_event, input: { dynastyId: string }): Promise<Top25CaptureImport | null> => {
+      const result = mainWindow
+        ? await dialog.showOpenDialog(mainWindow, {
+            title: 'Choose Top 25 rankings screenshots',
+            properties: ['openFile', 'multiSelections'],
+            filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp'] }],
+          })
+        : await dialog.showOpenDialog({
+            title: 'Choose Top 25 rankings screenshots',
+            properties: ['openFile', 'multiSelections'],
+            filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp'] }],
+          });
+      if (result.canceled || !result.filePaths[0]) return null;
+
+      logCapture(`top25 import started: dynastyId=${input.dynastyId}`);
+      const pages = await recognizeScreenshots(result.filePaths, { screenKind: 'top25_rankings' });
+      logOcrPages('top25 import', result.filePaths, pages);
+      const seasonYear = commissionerService.getCurrentSeasonYear();
+      const { import: imported } = importTop25FromOcrPages(pages, {
+        dynastyId: input.dynastyId,
+        seasonYear,
+      });
+      logCapture(
+        `top25 import parsed: entries=${imported.rankings.entries.length} seasonYear=${imported.rankings.seasonYear} partial=${imported.partial}`
+      );
+      logCaptureWarnings('top25 import', imported.warnings);
+      commissionerService.saveTop25Import(imported);
+      logCapture(`top25 import saved: entries=${imported.rankings.entries.length}`);
+      return imported;
+    }
+  );
+
+  ipcMain.handle('capture:list-top25-imports', async () => commissionerService.listTop25Imports());
+
+  ipcMain.handle('capture:save-manual-roster', async (_event, input) =>
+    commissionerService.saveManualRoster(input)
+  );
+
+  ipcMain.handle('capture:save-manual-schedule', async (_event, input) =>
+    commissionerService.saveManualSchedule(input)
+  );
+
+  ipcMain.handle('capture:save-manual-top25', async (_event, input) =>
+    commissionerService.saveManualTop25(input)
+  );
+
+  ipcMain.handle('capture:clear-team-imports', async (_event, input) =>
+    commissionerService.clearTeamImports(input)
+  );
+
+  ipcMain.handle('capture:clear-all-imports', async (_event, input) =>
+    commissionerService.clearAllImports(input)
+  );
+
+  ipcMain.handle('capture:undo-latest-roster-import', async (_event, input) =>
+    commissionerService.undoLatestRosterImport(input)
+  );
+
+  ipcMain.handle('capture:undo-latest-schedule-import', async (_event, input) =>
+    commissionerService.undoLatestScheduleImport(input)
+  );
+
+  ipcMain.handle('commissioner:get-config', async () => commissionerService.getCommissionerConfig());
 
   ipcMain.handle('commissioner:list-users', async () => commissionerService.listUsers());
 
@@ -294,7 +379,7 @@ function registerIpc(): void {
   ipcMain.handle('commissioner:refresh-users', async () => commissionerService.refreshUsers());
 
   ipcMain.handle('commissioner:list-tenures', async (_event, dynastyId?: string) =>
-    commissionerService.listTenures(dynastyId ?? 'dynasty-demo')
+    commissionerService.listTenures(dynastyId)
   );
 
   ipcMain.handle(
@@ -310,13 +395,77 @@ function registerIpc(): void {
   );
 
   ipcMain.handle('commissioner:list-imports', async (_event, dynastyId?: string) =>
-    commissionerService.listRosterImports(dynastyId ?? 'dynasty-demo')
+    commissionerService.listRosterImports(dynastyId)
   );
 
   ipcMain.handle('commissioner:publish', async () => commissionerService.publishToHosted());
 
   ipcMain.handle('commissioner:publish-history', async (_event, dynastyId?: string) =>
-    commissionerService.listPublishHistory(dynastyId ?? 'dynasty-demo')
+    commissionerService.listPublishHistory(dynastyId)
+  );
+
+  ipcMain.handle('commissioner:list-leagues', async () => commissionerService.listLeagues());
+
+  ipcMain.handle(
+    'commissioner:create-league',
+    async (
+      _event,
+      input: {
+        name: string;
+        startingSeasonYear: number;
+        selfUser: { displayName: string; email: string; temporaryPassword?: string };
+      }
+    ) => commissionerService.createLeague(input)
+  );
+
+  ipcMain.handle('commissioner:switch-league', async (_event, leagueId: string) =>
+    commissionerService.switchActiveLeague(leagueId)
+  );
+
+  ipcMain.handle('commissioner:delete-league', async (_event, leagueId: string) => {
+    await commissionerService.deleteLeague(leagueId);
+  });
+
+  ipcMain.handle('commissioner:preview-season-advance', async (_event, assignments?) =>
+    commissionerService.previewSeasonAdvance(assignments)
+  );
+
+  ipcMain.handle('commissioner:advance-season', async (_event, assignments) =>
+    commissionerService.advanceToNextSeason(assignments)
+  );
+
+  ipcMain.handle('commissioner:preview-week-advance', async () =>
+    commissionerService.previewWeekAdvance()
+  );
+
+  ipcMain.handle('commissioner:advance-week', async () => commissionerService.advanceToNextWeek());
+
+  ipcMain.handle('commissioner:get-archive-summary', async () =>
+    commissionerService.getDynastyArchiveSummary()
+  );
+
+  ipcMain.handle('commissioner:list-postseason-results', async (_event, seasonYear?: number) =>
+    commissionerService.listPostseasonResults(seasonYear)
+  );
+
+  ipcMain.handle('commissioner:save-postseason-result', async (_event, input) =>
+    commissionerService.savePostseasonResult(input)
+  );
+
+  ipcMain.handle('commissioner:delete-postseason-result', async (_event, id: string) =>
+    commissionerService.deletePostseasonResult(id)
+  );
+
+  ipcMain.handle('commissioner:update-checkpoint', async (_event, input) =>
+    commissionerService.updateCheckpoint(input)
+  );
+
+  ipcMain.handle('commissioner:update-checkpoint-roster', async (_event, input) =>
+    commissionerService.updateCheckpointRoster(input)
+  );
+
+  ipcMain.handle('commissioner:update-player-catalog-entry', async (_event, input) =>
+    commissionerService.updatePlayerCatalogEntry(input)
   );
 
   ipcMain.handle('data:export-placeholder', async () => {
@@ -376,6 +525,10 @@ app.on('activate', () => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('will-quit', () => {
+  void terminateOcrWorker();
 });
 
 void bootstrap().catch((error) => {
