@@ -1,6 +1,7 @@
 import type {
   DynastyCheckpoint,
   PlayerCatalogEntry,
+  PlayerProgression,
   PostseasonResult,
   RankingSnapshot,
   Season,
@@ -15,6 +16,7 @@ export interface CommissionerDynastyState {
   archivedRankings: RankingSnapshot[];
   teamRosterSnapshots: TeamRosterSnapshot[];
   checkpoints: DynastyCheckpoint[];
+  progression: PlayerProgression[];
   playerCatalog: PlayerCatalogEntry[];
   postseasonResults: PostseasonResult[];
   scheduleImports: ScheduleCaptureImport[];
@@ -31,6 +33,7 @@ export const DEFAULT_COMMISSIONER_DYNASTY_STATE = (
   archivedRankings: [],
   teamRosterSnapshots: [],
   checkpoints: [],
+  progression: [],
   playerCatalog: [],
   postseasonResults: [],
   scheduleImports: [],

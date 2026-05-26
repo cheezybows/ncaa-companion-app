@@ -62,20 +62,23 @@
   --color-text-primary:   #e9d8a6;   /* main body text */
   --color-text-muted:     #94d2bd;   /* secondary text, labels */
   --color-text-faint:     #005f73;   /* section labels, placeholders */
+  --color-input-bg:       #0C1729;   /* dark field fill for text inputs */
+  --color-input-text:     #ffffff;   /* readable text on dark inputs */
+  --color-input-placeholder: #94d2bd; /* placeholder text on dark inputs */
 
   /* --- TYPOGRAPHY --- */
   --font-display:   'Bebas Neue', 'Impact', serif;   /* stat numbers, hero text */
   --font-body:      'IBM Plex Mono', 'Courier New', monospace; /* all UI text */
 
-  --text-xs:        8px;    /* section labels, micro badges */
-  --text-sm:        10px;   /* nav items, field labels, badge text */
-  --text-base:      12px;   /* body, table cells, panel sub */
-  --text-md:        14px;   /* panel titles, standard UI */
-  --text-lg:        16px;   /* page titles */
-  --text-xl:        20px;   /* topbar logo */
-  --text-display-sm: 18px;  /* small stat numbers */
-  --text-display-md: 26px;  /* card stat values */
-  --text-display-lg: 40px;  /* hero numbers */
+  --text-xs:        12px;   /* section labels, micro badges */
+  --text-sm:        15px;   /* nav items, field labels, badge text */
+  --text-base:      18px;   /* body, table cells, panel sub */
+  --text-md:        21px;   /* panel titles, standard UI */
+  --text-lg:        24px;   /* page titles */
+  --text-xl:        30px;   /* topbar logo */
+  --text-display-sm: 27px;  /* small stat numbers */
+  --text-display-md: 39px;  /* card stat values */
+  --text-display-lg: 60px;  /* hero numbers */
 
   --tracking-tight: 0.5px;
   --tracking-normal: 1px;
@@ -100,8 +103,8 @@
   --space-12: 48px;
 
   /* --- LAYOUT --- */
-  --sidebar-width:      168px;
-  --topbar-height:      48px;
+  --sidebar-width:      200px;
+  --topbar-height:      72px;
   --panel-padding:      16px;
   --panel-padding-sm:   12px;
   --content-gap:        14px;
@@ -159,6 +162,10 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
+html {
+  font-size: 100%;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--color-bg-surface); }
@@ -179,9 +186,9 @@ html, body {
   background: var(--color-bg-base);
 }
 
-/* Top navigation bar */
+/* Optional top navigation bar. Current apps do not render a header by default. */
 .topbar {
-  height: var(--topbar-height);
+  min-height: var(--topbar-height);
   background: var(--color-bg-surface);
   border-bottom: var(--border-accent) solid var(--color-teal-700);
   display: flex;
@@ -190,12 +197,14 @@ html, body {
   z-index: 10;
 }
 
-/* Body below topbar */
+/* Full-height app body */
 .app-body {
   display: flex;
   flex: 1;
   overflow: hidden;
 }
+
+/* Sidebar spans the full viewport height; headers should be omitted unless a flow needs one. */
 
 /* Left sidebar */
 .sidebar {
@@ -209,6 +218,14 @@ html, body {
 }
 
 /* Main content area */
+.main-pane {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
 .main-content {
   flex: 1;
   padding: var(--space-5);
@@ -224,11 +241,13 @@ html, body {
 .topbar-logo {
   display: flex;
   align-items: center;
-  padding: 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
   border-right: var(--border-default);
   gap: var(--space-3);
   text-decoration: none;
 }
+
+/* Topbar brand copy is optional; current apps omit the topbar entirely. */
 
 .topbar-logo-title {
   font-family: var(--font-display);
@@ -259,7 +278,7 @@ html, body {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
   border-left: var(--border-default);
   height: 100%;
 }
@@ -291,6 +310,22 @@ html, body {
    SIDEBAR COMPONENTS
    ============================================================ */
 
+.sidebar-brand {
+  padding: var(--space-4);
+  border-bottom: var(--border-faint);
+}
+
+.sidebar-brand .sidebar-logo,
+.sidebar-brand .commissioner-logo {
+  display: block;
+  width: 100%;
+  max-width: 168px;
+  height: auto;
+  margin-bottom: var(--space-4);
+}
+
+/* Current apps use logo-only sidebars. On mobile portal layouts, center this logo at the top. */
+
 .sidebar-section-label {
   font-size: var(--text-xs);
   letter-spacing: var(--tracking-wider);
@@ -304,6 +339,7 @@ html, body {
   align-items: center;
   padding: 9px var(--space-4);
   font-size: var(--text-sm);
+  line-height: var(--leading-normal);
   letter-spacing: var(--tracking-normal);
   text-transform: uppercase;
   color: var(--color-teal-300);
@@ -337,6 +373,7 @@ html, body {
 }
 
 .sidebar-footer-label {
+  display: block;
   font-size: var(--text-xs);
   letter-spacing: var(--tracking-wide);
   color: var(--color-teal-500);
@@ -344,14 +381,17 @@ html, body {
 }
 
 .sidebar-footer-number {
+  display: block;
   font-family: var(--font-display);
   font-size: var(--text-display-md);
   color: var(--color-gold-500);
   letter-spacing: var(--tracking-wide);
   line-height: var(--leading-tight);
+  margin-top: var(--space-1);
 }
 
 .sidebar-footer-sub {
+  display: block;
   font-size: var(--text-xs);
   color: var(--color-teal-500);
   letter-spacing: var(--tracking-normal);
@@ -427,6 +467,69 @@ html, body {
 
 
 /* ============================================================
+   WORKFLOW SECTIONS
+   Use these for multi-step commissioner flows so dense forms do not collapse into one cluttered panel.
+   ============================================================ */
+
+.workflow-page {
+  display: grid;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.workflow-panel {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.workflow-heading {
+  display: flex;
+  align-items: start;
+  gap: var(--space-3);
+}
+
+.workflow-heading > span {
+  flex: 0 0 auto;
+  min-width: 5.5rem;
+  padding: 0.35rem 0.5rem;
+  color: var(--color-gold-500);
+  background: rgba(238, 155, 0, 0.08);
+  border: 1px solid rgba(238, 155, 0, 0.35);
+  font-size: var(--text-xs);
+  font-weight: 900;
+  letter-spacing: var(--tracking-wide);
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.workflow-sections {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.workflow-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+}
+
+.workflow-section {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-faint);
+  background: rgba(0, 95, 115, 0.1);
+}
+
+.workflow-section-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+
+/* ============================================================
    FORM: FIELD LABEL
    ============================================================ */
 
@@ -434,7 +537,7 @@ html, body {
   display: block;
   font-size: var(--text-xs);
   letter-spacing: var(--tracking-wide);
-  color: var(--color-teal-500);
+  color: #ffffff;
   text-transform: uppercase;
   margin-bottom: var(--space-1);
 }
@@ -447,9 +550,9 @@ html, body {
 select,
 .select {
   width: 100%;
-  background: var(--color-bg-surface);
-  color: var(--color-text-primary);
-  border: var(--border-default);
+  background: var(--color-input-bg);
+  color: var(--color-input-text);
+  border: 1px solid var(--color-teal-300);
   border-radius: var(--radius-md);
   padding: 7px var(--space-5) 7px var(--space-3);
   font-family: var(--font-body);
@@ -483,35 +586,88 @@ select option {
    FORM: TEXT INPUT
    ============================================================ */
 
+input:not([type]),
 input[type="text"],
 input[type="email"],
 input[type="password"],
 input[type="search"],
 .input {
   width: 100%;
-  background: var(--color-bg-surface);
-  color: var(--color-text-primary);
-  border: var(--border-default);
+  background: var(--color-input-bg);
+  color: var(--color-input-text);
+  border: 1px solid var(--color-teal-300);
   border-radius: var(--radius-md);
+  min-height: 2rem;
   padding: 7px var(--space-3);
   font-family: var(--font-body);
   font-size: var(--text-sm);
   letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-normal);
   margin-bottom: var(--space-3);
   transition: border-color var(--transition-fast);
 }
 
+input:not([type])::placeholder,
 input[type="text"]::placeholder,
-.input::placeholder { color: var(--color-teal-700); }
+.input::placeholder { color: var(--color-input-placeholder); }
 
+input:not([type]):hover,
 input[type="text"]:hover,
 .input:hover { border-color: var(--color-teal-500); }
 
+input:not([type]):focus,
 input[type="text"]:focus,
 .input:focus {
   outline: none;
   border-color: var(--color-teal-500);
-  box-shadow: 0 0 0 2px rgba(10, 147, 150, 0.2);
+  box-shadow: none;
+}
+
+.search-select input {
+  border: 1px solid var(--color-teal-300);
+  border-radius: var(--radius-md);
+  min-height: 2rem;
+  padding-right: var(--space-8);
+  line-height: var(--leading-normal);
+  box-shadow: none;
+}
+
+.search-select input:hover,
+.search-select input:focus {
+  border-width: 1px;
+  box-shadow: none;
+  outline: none;
+}
+
+.search-select input::placeholder {
+  color: var(--color-input-text);
+  opacity: 0.65;
+}
+
+/* Team selectors should use this combined searchable dropdown pattern, not separate search and select controls.
+   Do not add page-specific height, padding, or font overrides for searchable combo fields. */
+
+.combo-select-toggle {
+  position: absolute;
+  display: grid;
+  top: 1px;
+  right: 1px;
+  place-items: center;
+  width: calc(var(--space-8) - 2px);
+  height: calc(100% - 2px);
+  padding: 0;
+  color: var(--color-teal-500);
+  background: transparent;
+  border: 0;
+  border-radius: 0 calc(var(--radius-md) - 1px) calc(var(--radius-md) - 1px) 0;
+  font-size: inherit;
+  line-height: 1;
+}
+
+.combo-select-menu {
+  border: 1px solid var(--color-teal-300);
+  border-radius: var(--radius-md);
+  background: var(--color-input-bg);
 }
 
 
@@ -699,7 +855,7 @@ input[type="checkbox"] {
 }
 
 .stat-card-label {
-  font-size: var(--text-xs);
+  font-size: calc(var(--text-xs) * 0.85);
   letter-spacing: var(--tracking-wide);
   color: var(--color-teal-500);
   text-transform: uppercase;
@@ -708,7 +864,7 @@ input[type="checkbox"] {
 
 .stat-card-value {
   font-family: var(--font-display);
-  font-size: var(--text-display-md);
+  font-size: calc(var(--text-display-md) * 0.85);
   color: var(--color-text-primary);
   letter-spacing: var(--tracking-normal);
   line-height: var(--leading-tight);
@@ -720,6 +876,73 @@ input[type="checkbox"] {
   letter-spacing: var(--tracking-normal);
   margin-top: var(--space-1);
   text-transform: uppercase;
+}
+
+
+/* ============================================================
+   PROGRESSION CHARTS
+   ============================================================ */
+
+.progression-detail-panel {
+  border-top-color: var(--color-gold-500);
+}
+
+.view-toggle {
+  display: flex;
+  gap: 0;
+  padding: var(--space-1);
+  border: var(--border-default);
+  border-radius: var(--radius-none);
+  background: var(--color-bg-surface);
+}
+
+.chart-card {
+  margin-top: var(--space-4);
+  padding: var(--space-5);
+  border: var(--border-default);
+  border-top: var(--border-accent) solid var(--color-gold-500);
+  border-radius: var(--radius-none);
+  background:
+    linear-gradient(180deg, rgba(0, 95, 115, 0.12), transparent 38%),
+    var(--color-bg-surface);
+}
+
+.line-chart polyline {
+  fill: none;
+  stroke: var(--color-teal-300);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 4;
+}
+
+.line-chart circle {
+  fill: var(--color-bg-surface);
+  stroke: var(--color-gold-500);
+  stroke-width: 4;
+}
+
+.line-chart .point-value {
+  fill: var(--color-gold-500);
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.chart-legend span,
+.ability-pill {
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-faint);
+  border-radius: var(--radius-none);
+  color: var(--color-text-muted);
+  background: rgba(0, 95, 115, 0.16);
+}
+
+.chart-legend span {
+  border-left: var(--border-accent) solid var(--color-teal-500);
 }
 
 
@@ -853,7 +1076,6 @@ input[type="checkbox"] {
 }
 
 .data-table .col-rank  { width: 50px; }
-.data-table .col-team  { }         /* flex fills remaining */
 .data-table .col-status{ width: 90px; }
 .data-table .col-season{ width: 70px; }
 .data-table .col-result{ width: 70px; text-align: right; }
@@ -1651,35 +1873,15 @@ code {
   <div class="sg-section">
     <div class="sg-section-title">App Shell Reference</div>
     <div style="font-size:10px;color:var(--color-teal-500);margin-bottom:16px;letter-spacing:1px">
-      Full layout structure. Copy the HTML structure below for any new page.
+      Full layout structure. Copy the HTML structure below for any new page; omit topbar/header chrome unless a flow explicitly needs it.
     </div>
 
     <div class="app" style="height:520px;border:var(--border-default);border-radius:4px;overflow:hidden">
-      <div class="topbar">
-        <div class="topbar-logo">
-          <div>
-            <div class="topbar-logo-title">College Football</div>
-            <div class="topbar-logo-sub">Commissioner App</div>
-          </div>
-        </div>
-        <div class="topbar-stats">
-          <div class="topbar-stat">
-            <div class="topbar-stat-label">Season</div>
-            <div class="topbar-stat-value">2026</div>
-          </div>
-          <div class="topbar-stat">
-            <div class="topbar-stat-label">Active Users</div>
-            <div class="topbar-stat-value">3</div>
-          </div>
-          <div class="topbar-stat">
-            <div class="topbar-stat-label">Last Publish</div>
-            <div class="topbar-stat-value topbar-stat-value--sm">05/23 4:05p</div>
-          </div>
-        </div>
-      </div>
-
       <div class="app-body">
         <div class="sidebar">
+          <div class="sidebar-brand">
+            <img class="sidebar-logo commissioner-logo" src="college-football-comissioner-app-logo.svg" alt="College Football Commissioner App">
+          </div>
           <div class="sidebar-section-label">League</div>
           <a class="sidebar-item">Overview</a>
           <a class="sidebar-item">Users</a>
@@ -1699,7 +1901,8 @@ code {
           </div>
         </div>
 
-        <div class="main-content">
+        <div class="main-pane">
+          <div class="main-content">
           <div class="page-header">
             <div class="page-title">Team Data Imports</div>
             <div class="page-subtitle">Pick an assigned coach/team, then upload roster or schedule screenshots.</div>

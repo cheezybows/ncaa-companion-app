@@ -12,6 +12,11 @@ export interface SeasonAdvanceAssignmentInput {
   nextTeamId?: string;
 }
 
+export interface SeasonAdvanceHeismanInput {
+  playerName: string;
+  teamId: string;
+}
+
 export type { TeamRosterSnapshot };
 
 export interface SeasonAdvancePreview {

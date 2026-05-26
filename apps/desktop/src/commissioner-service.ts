@@ -5,8 +5,6 @@ import {
   DEMO_DYNASTY_ID,
   DEMO_USERS,
   PLACEHOLDER_CONFERENCES,
-  PLACEHOLDER_DYNASTY,
-  PLACEHOLDER_ROSTERS,
   PLACEHOLDER_TEAMS,
 } from '@ncaa/domain';
 import type {
@@ -16,6 +14,7 @@ import type {
   DynastyArchiveSummary,
   DynastyCheckpoint,
   PlayerCatalogEntry,
+  PlayerProgression,
   PostseasonResult,
   RankingEntry,
   RankingSnapshot,
@@ -23,6 +22,7 @@ import type {
   ScheduleGame,
   Season,
   SeasonAdvanceAssignmentInput,
+  SeasonAdvanceHeismanInput,
   SeasonAdvancePreview,
   SeasonAdvanceResult,
   SeasonStanding,
@@ -50,6 +50,7 @@ import {
   buildSeasonAdvancePreview,
   getScheduleImportTeamId,
   mergeTeamScheduleIntoSeason,
+  resolveHeismanWinner,
   resolveActiveTeamForAssignment,
   rosterMapFromImports,
 } from './season-advance.js';
@@ -77,6 +78,10 @@ type TeamImportDeletionStore = {
 
 const DEFAULT_API_URL = 'http://127.0.0.1:8787';
 const COMMISSIONER_USER_ID = 'user-admin';
+
+function canUseCoachPortal(user: AppUser): boolean {
+  return (user.role === 'coach' || user.role === 'admin') && (user.accessStatus ?? 'active') === 'active';
+}
 
 export function getHostedApiUrl(): string {
   return process.env.NCAA_API_URL ?? DEFAULT_API_URL;
@@ -129,6 +134,52 @@ type DynastyStateStore = {
   saveDynastyState(state: CommissionerDynastyState): void;
 };
 
+function progressionSnapshotKey(snapshot: PlayerProgression['snapshots'][number]): string {
+  return `${snapshot.seasonYear}:${snapshot.week ?? 'final'}:${snapshot.label}`;
+}
+
+function mergeProgressionPayloads(
+  preserved: PlayerProgression[] = [],
+  generated: PlayerProgression[] = []
+): PlayerProgression[] {
+  const byPlayer = new Map<string, PlayerProgression>();
+
+  for (const item of preserved) {
+    byPlayer.set(item.playerId, {
+      ...item,
+      snapshots: [...item.snapshots],
+    });
+  }
+
+  for (const item of generated) {
+    const existing = byPlayer.get(item.playerId);
+    if (!existing) {
+      byPlayer.set(item.playerId, {
+        ...item,
+        snapshots: [...item.snapshots],
+      });
+      continue;
+    }
+
+    const snapshots = new Map(existing.snapshots.map((snapshot) => [progressionSnapshotKey(snapshot), snapshot]));
+    for (const snapshot of item.snapshots) {
+      snapshots.set(progressionSnapshotKey(snapshot), snapshot);
+    }
+
+    byPlayer.set(item.playerId, {
+      ...existing,
+      ...item,
+      snapshots: [...snapshots.values()].sort((a, b) => {
+        const seasonDiff = a.seasonYear - b.seasonYear;
+        if (seasonDiff !== 0) return seasonDiff;
+        return (a.week ?? -1) - (b.week ?? -1);
+      }),
+    });
+  }
+
+  return [...byPlayer.values()];
+}
+
 type LeagueStore = {
   listLeagues(): CommissionerLeague[];
   getLeague(leagueId: string): CommissionerLeague | null;
@@ -136,6 +187,10 @@ type LeagueStore = {
   deleteLeague(leagueId: string): boolean;
   getActiveLeagueId(): string | null;
   setActiveLeagueId(leagueId: string): void;
+};
+
+type UserDeletionStore = {
+  deleteUsers(userIds: string[]): number;
 };
 
 export interface CommissionerConfig {
@@ -147,6 +202,29 @@ export interface CommissionerConfig {
   hostedStateMirrorPath?: string;
 }
 
+interface DemoDynastyBundle {
+  dynasty: Dynasty;
+  teams: Team[];
+  rosters: Record<string, Roster>;
+  progression: PlayerProgression[];
+  checkpoints?: DynastyCheckpoint[];
+  playerCatalog?: PlayerCatalogEntry[];
+  postseasonResults?: PostseasonResult[];
+  rankings?: RankingSnapshot[];
+  users?: AppUser[];
+  teamTenures?: TeamTenure[];
+  activeUserId?: string;
+}
+
+export interface DemoModeResult {
+  dynastyId: string;
+  leagueName: string;
+  batchId: string;
+  updated: boolean;
+  userCount: number;
+  tenureCount: number;
+}
+
 export class CommissionerService {
   private dynastyState: CommissionerDynastyState;
   private activeLeagueId: string;
@@ -156,6 +234,7 @@ export class CommissionerService {
     private hostedStateMirrorPath?: string
   ) {
     this.activeLeagueId = this.ensureBootstrappedLeagues();
+    this.pruneDemoUsersAfterDeletedDemoLeague();
     this.dynastyState = this.readDynastyStateFromStore();
   }
 
@@ -178,18 +257,12 @@ export class CommissionerService {
 
     const leagues = store.listLeagues();
     if (leagues.length === 0) {
-      store.createLeague!({
-        id: DEMO_DYNASTY_ID,
-        name: PLACEHOLDER_DYNASTY.name,
-        startingSeasonYear: PLACEHOLDER_DYNASTY.currentSeasonYear,
-        commissionerUserId: COMMISSIONER_USER_ID,
-      });
-      store.setActiveLeagueId!(DEMO_DYNASTY_ID);
+      return '';
     } else if (!store.getActiveLeagueId?.()) {
       store.setActiveLeagueId!(leagues[0]!.id);
     }
 
-    return store.getActiveLeagueId?.() ?? DEMO_DYNASTY_ID;
+    return store.getActiveLeagueId?.() ?? leagues[0]?.id ?? '';
   }
 
   getActiveDynastyId(): string {
@@ -207,7 +280,7 @@ export class CommissionerService {
     return {
       apiUrl: getHostedApiUrl(),
       dynastyId: this.getActiveDynastyId(),
-      leagueName: league?.name ?? PLACEHOLDER_DYNASTY.name,
+      leagueName: league?.name ?? 'No league created',
       startingSeasonYear: league?.startingSeasonYear ?? this.dynastyState.currentSeasonYear,
       commissionerUserId: league?.commissionerUserId ?? COMMISSIONER_USER_ID,
       hostedStateMirrorPath: this.hostedStateMirrorPath,
@@ -280,6 +353,8 @@ export class CommissionerService {
     const deleted = leagueStore.deleteLeague(leagueId);
     if (!deleted) throw new Error(`Failed to delete league: ${leagueId}`);
 
+    this.deleteDemoUsersWithoutRemainingTenures(leagueId, leagueStore);
+
     if (wasActive) {
       const nextLeague = leagueStore.listLeagues()[0];
       if (!nextLeague) throw new Error('No leagues remain after delete.');
@@ -289,16 +364,55 @@ export class CommissionerService {
     }
   }
 
+  private deleteDemoUsersWithoutRemainingTenures(
+    deletedLeagueId: string,
+    leagueStore: LeagueStore
+  ): void {
+    if (deletedLeagueId !== DEMO_DYNASTY_ID) return;
+    const store = this.store as CommissionerStore & Partial<UserDeletionStore>;
+    if (typeof store.deleteUsers !== 'function') return;
+
+    const remainingLeagues = leagueStore.listLeagues();
+    const removableDemoUserIds = DEMO_USERS
+      .map((user) => user.id)
+      .filter((userId) =>
+        remainingLeagues.every((league) =>
+          this.store
+            .listTenures(league.id)
+            .every((tenure) => tenure.userId !== userId)
+        )
+      );
+
+    store.deleteUsers(removableDemoUserIds);
+  }
+
+  private pruneDemoUsersAfterDeletedDemoLeague(): void {
+    const leagueStore = this.store as CommissionerStore & Partial<LeagueStore>;
+    if (
+      typeof leagueStore.listLeagues !== 'function' ||
+      typeof leagueStore.getLeague !== 'function' ||
+      leagueStore.getLeague(DEMO_DYNASTY_ID)
+    ) {
+      return;
+    }
+
+    this.deleteDemoUsersWithoutRemainingTenures(DEMO_DYNASTY_ID, leagueStore as LeagueStore);
+  }
+
   private defaultSeasonYearForDynasty(dynastyId: string): number {
     const league = (this.store as CommissionerStore & Partial<LeagueStore>).getLeague?.(dynastyId);
-    return league?.startingSeasonYear ?? PLACEHOLDER_DYNASTY.currentSeasonYear;
+    return league?.startingSeasonYear ?? new Date().getFullYear();
   }
 
   private readDynastyStateFromStore(): CommissionerDynastyState {
     const dynastyId = this.getActiveDynastyId();
     const store = this.store as CommissionerStore & Partial<DynastyStateStore>;
     if (typeof store.getDynastyState === 'function') {
-      return store.getDynastyState(dynastyId, this.defaultSeasonYearForDynasty(dynastyId));
+      const state = store.getDynastyState(dynastyId, this.defaultSeasonYearForDynasty(dynastyId));
+      return {
+        ...state,
+        progression: state.progression ?? [],
+      };
     }
     return {
       dynastyId,
@@ -307,6 +421,7 @@ export class CommissionerService {
       archivedRankings: [],
       teamRosterSnapshots: [],
       checkpoints: [],
+      progression: [],
       playerCatalog: [],
       postseasonResults: [],
       scheduleImports: [],
@@ -339,7 +454,10 @@ export class CommissionerService {
       };
 
       if (parsed.dynastyState) {
-        this.dynastyState = parsed.dynastyState;
+        this.dynastyState = {
+          ...parsed.dynastyState,
+          progression: parsed.dynastyState.progression ?? [],
+        };
       } else {
         this.dynastyState = {
           ...this.dynastyState,
@@ -348,6 +466,7 @@ export class CommissionerService {
           archivedRankings: parsed.archivedRankings ?? this.dynastyState.archivedRankings,
           teamRosterSnapshots: parsed.teamRosterSnapshots ?? this.dynastyState.teamRosterSnapshots,
           checkpoints: parsed.checkpoints ?? this.dynastyState.checkpoints,
+          progression: this.dynastyState.progression,
           playerCatalog: parsed.playerCatalog ?? this.dynastyState.playerCatalog,
           postseasonResults: parsed.postseasonResults ?? this.dynastyState.postseasonResults,
           scheduleImports: parsed.scheduleImports ?? this.dynastyState.scheduleImports,
@@ -366,6 +485,7 @@ export class CommissionerService {
 
   async writeHostedStateMirror(): Promise<void> {
     if (!this.hostedStateMirrorPath) return;
+    this.pruneDemoUsersAfterDeletedDemoLeague();
     const state = {
       updatedAt: new Date().toISOString(),
       users: this.listUsers(),
@@ -402,7 +522,6 @@ export class CommissionerService {
   }
 
   async refreshUsers(): Promise<AppUser[]> {
-    await this.seedDemoUsers();
     try {
       const users = await apiRequest<AppUser[]>('/users');
       this.store.upsertUsers(users.map((user) => ({ ...user, accessStatus: user.accessStatus ?? 'active' })));
@@ -415,14 +534,10 @@ export class CommissionerService {
   }
 
   listUsers(): AppUser[] {
-    const cached = this.store.listUsers();
-    const byId = new Map<string, AppUser>(
-      DEMO_USERS.map((user) => [user.id, { ...user, accessStatus: 'active' as const }])
-    );
-    for (const user of cached) {
-      byId.set(user.id, { ...user, accessStatus: user.accessStatus ?? 'active' });
-    }
-    return [...byId.values()].sort((a, b) => a.displayName.localeCompare(b.displayName));
+    return this.store
+      .listUsers()
+      .map((user) => ({ ...user, accessStatus: user.accessStatus ?? 'active' }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
   }
 
   listTeams(): Team[] {
@@ -454,11 +569,7 @@ export class CommissionerService {
   }
 
   listCoaches(): AppUser[] {
-    const cached = this.listUsers().filter(
-      (user) => user.role === 'coach' && (user.accessStatus ?? 'active') === 'active'
-    );
-    if (cached.length > 0) return cached;
-    return DEMO_USERS.filter((user) => user.role === 'coach');
+    return this.listUsers().filter(canUseCoachPortal);
   }
 
   async saveUser(input: {
@@ -490,6 +601,19 @@ export class CommissionerService {
     this.store.upsertUsers([user]);
     await this.writeHostedStateMirror();
     return user;
+  }
+
+  async deleteUser(userId: string): Promise<{ removedUsers: number }> {
+    const store = this.store as CommissionerStore & Partial<UserDeletionStore>;
+    if (typeof store.deleteUsers !== 'function') {
+      throw new Error('User deletion is not available in this storage backend.');
+    }
+    const user = this.listUsers().find((item) => item.id === userId);
+    if (!user) throw new Error(`Unknown user: ${userId}`);
+
+    const removedUsers = store.deleteUsers([userId]);
+    await this.writeHostedStateMirror();
+    return { removedUsers };
   }
 
   listTenures(dynastyId?: string): TeamTenure[] {
@@ -545,6 +669,11 @@ export class CommissionerService {
     userId: string;
     teamId: string;
   }): Promise<TeamTenure> {
+    const user = this.listUsers().find((item) => item.id === input.userId);
+    if (!user || !canUseCoachPortal(user)) {
+      throw new Error('User must be an active coach or commissioner to receive a team assignment.');
+    }
+
     let tenure: TeamTenure;
     try {
       tenure = await apiRequest<TeamTenure>(`/dynasties/${input.dynastyId}/team-assignments`, {
@@ -562,7 +691,7 @@ export class CommissionerService {
         userId: input.userId,
         dynastyId: input.dynastyId,
         teamId: input.teamId,
-        role: 'coach',
+        role: user.role,
         status: 'active',
         startSeasonYear: this.getCurrentSeasonYear(),
         label: 'Assigned locally (API offline)',
@@ -773,6 +902,20 @@ export class CommissionerService {
     return { removedScheduleImports: 1 };
   }
 
+  async undoLatestTop25Import(): Promise<{ removedTop25Imports: number }> {
+    if (this.dynastyState.top25Imports.length === 0) {
+      return { removedTop25Imports: 0 };
+    }
+
+    this.dynastyState = {
+      ...this.dynastyState,
+      top25Imports: this.dynastyState.top25Imports.slice(1),
+    };
+    this.persistDynastyState();
+    await this.writeHostedStateMirror();
+    return { removedTop25Imports: 1 };
+  }
+
   async saveManualTop25(input: {
     dynastyId: string;
     entries: RankingEntry[];
@@ -878,6 +1021,7 @@ export class CommissionerService {
       archivedSeasonCount: this.dynastyState.archivedSeasons.length,
       playerCatalogCount: this.dynastyState.playerCatalog.length,
       postseasonResultCount: this.dynastyState.postseasonResults.length,
+      archivedSeasons: [...this.dynastyState.archivedSeasons].sort((a, b) => b.year - a.year),
       checkpoints: [...this.dynastyState.checkpoints].sort((a, b) => {
         const seasonDiff = b.seasonYear - a.seasonYear;
         if (seasonDiff !== 0) return seasonDiff;
@@ -1058,6 +1202,7 @@ export class CommissionerService {
       buildDefaultSeasonAdvanceAssignments(activeTenures, this.listCoaches(), this.listTeams());
 
     return buildSeasonAdvancePreview({
+      dynastyId: this.getActiveDynastyId(),
       currentSeasonYear: this.getCurrentSeasonYear(),
       assignments: resolvedAssignments,
       scheduleImports: this.dynastyState.scheduleImports,
@@ -1070,7 +1215,10 @@ export class CommissionerService {
     });
   }
 
-  async advanceToNextSeason(assignments: SeasonAdvanceAssignmentInput[]): Promise<SeasonAdvanceResult> {
+  async advanceToNextSeason(
+    assignments: SeasonAdvanceAssignmentInput[],
+    heisman?: SeasonAdvanceHeismanInput
+  ): Promise<SeasonAdvanceResult> {
     const preview = this.previewSeasonAdvance(assignments);
     if (preview.validationErrors.length > 0) {
       throw new Error(preview.validationErrors.join(' '));
@@ -1138,6 +1286,15 @@ export class CommissionerService {
       preview.archivedSeason,
       this.dynastyState.postseasonResults
     );
+    const heismanWinner = resolveHeismanWinner({
+      heisman,
+      assignments,
+      rosterByTeamId: rosterByTeam,
+      seasonYear: currentSeasonYear,
+    });
+    const archivedSeasonWithAwards = heismanWinner
+      ? { ...archivedSeasonWithAchievements, heismanWinner }
+      : archivedSeasonWithAchievements;
 
     const priorFinalSnapshots = seasonFinalCheckpoint.rosterSnapshots;
     const nextSeasonSnapshots = buildRosterSnapshotsForSeason(
@@ -1159,7 +1316,7 @@ export class CommissionerService {
       checkpoints: [...this.dynastyState.checkpoints, seasonFinalCheckpoint],
       archivedSeasons: [
         ...this.dynastyState.archivedSeasons.filter((season) => season.year !== currentSeasonYear),
-        archivedSeasonWithAchievements,
+        archivedSeasonWithAwards,
       ].sort((a, b) => a.year - b.year),
       archivedRankings: [...this.dynastyState.archivedRankings, ...rankingsToArchive],
       teamRosterSnapshots: [
@@ -1181,7 +1338,7 @@ export class CommissionerService {
       currentSeasonYear: nextSeasonYear,
       tenuresUpdated: tenureUpdates.count,
       rostersCarriedForward,
-      archivedSeason: preview.archivedSeason,
+      archivedSeason: archivedSeasonWithAwards,
     };
   }
 
@@ -1223,9 +1380,7 @@ export class CommissionerService {
   }
 
   private buildDynastyWithScheduleImports(): Dynasty {
-    const seasonsByYear = new Map<number, Season>(
-      PLACEHOLDER_DYNASTY.seasons.map((season) => [season.year, season])
-    );
+    const seasonsByYear = new Map<number, Season>();
 
     for (const season of this.dynastyState.archivedSeasons) {
       seasonsByYear.set(season.year, season);
@@ -1242,20 +1397,37 @@ export class CommissionerService {
       ...this.dynastyState.archivedRankings,
       ...this.dynastyState.top25Imports.map((item) => item.rankings),
     ];
+    const currentSeasonYear = this.getCurrentSeasonYear();
+    if (!seasonsByYear.has(currentSeasonYear)) {
+      seasonsByYear.set(currentSeasonYear, {
+        id: `season-${currentSeasonYear}`,
+        dynastyId: this.getActiveDynastyId(),
+        year: currentSeasonYear,
+        label: `${currentSeasonYear} Season`,
+        schedule: [],
+        standings: [],
+      });
+    }
     const seasons = Array.from(seasonsByYear.values())
       .map((season) => this.applyRankingSnapshotsToSeason(season, rankings))
+      .map((season) => applyPostseasonAchievementsToSeason(season, this.dynastyState.postseasonResults))
       .sort((a, b) => a.year - b.year);
+    const league = this.getActiveLeague();
+    const now = new Date().toISOString();
 
     return {
-      ...PLACEHOLDER_DYNASTY,
-      currentSeasonYear: this.getCurrentSeasonYear(),
+      id: this.getActiveDynastyId(),
+      name: league?.name ?? 'Local Dynasty',
+      currentSeasonYear,
       seasons,
       rankings,
+      recruitingClasses: [],
       teamRosterSnapshots: this.dynastyState.teamRosterSnapshots,
       checkpoints: this.dynastyState.checkpoints,
       playerCatalog: this.dynastyState.playerCatalog,
       postseasonResults: this.dynastyState.postseasonResults,
-      updatedAt: new Date().toISOString(),
+      createdAt: league?.createdAt ?? now,
+      updatedAt: now,
     };
   }
 
@@ -1265,13 +1437,14 @@ export class CommissionerService {
       ...this.dynastyState.teamRosterSnapshots,
       ...this.dynastyState.checkpoints.flatMap((checkpoint) => checkpoint.rosterSnapshots),
     ];
-    return enrichProgressionNames(progressionFromSnapshots(snapshots), allRosterSnapshots);
+    const generatedProgression = enrichProgressionNames(progressionFromSnapshots(snapshots), allRosterSnapshots);
+    return mergeProgressionPayloads(this.dynastyState.progression, generatedProgression);
   }
 
   buildPublishPayload(uploadedByUserId = COMMISSIONER_USER_ID): DynastySyncPayload {
     const imports = this.store.listRosterImports(this.getActiveDynastyId());
     const teams = this.listTeams();
-    const rosters: Record<string, Roster> = { ...PLACEHOLDER_ROSTERS };
+    const rosters: Record<string, Roster> = {};
 
     for (const [teamId, roster] of rosterMapFromImports(imports)) {
       rosters[teamId] = roster;
@@ -1287,6 +1460,7 @@ export class CommissionerService {
         checkpoints: this.dynastyState.checkpoints,
         playerCatalog: this.dynastyState.playerCatalog,
         postseasonResults: this.dynastyState.postseasonResults,
+        teamTenures: this.listTenures(this.getActiveDynastyId()),
       }
     );
   }
@@ -1312,6 +1486,113 @@ export class CommissionerService {
       payload,
       updated: response.updated ?? true,
       batchId: response.batch?.id ?? payload.batchId,
+    };
+  }
+
+  async installDemoModeFromFile(filePath: string): Promise<DemoModeResult> {
+    const bundle = JSON.parse(await readFile(filePath, 'utf8')) as DemoDynastyBundle;
+    if (!bundle.dynasty?.id || !bundle.dynasty.name) {
+      throw new Error('Demo dynasty fixture is missing dynasty metadata.');
+    }
+    if (!Array.isArray(bundle.teams) || !bundle.rosters || !Array.isArray(bundle.progression)) {
+      throw new Error('Demo dynasty fixture is missing teams, rosters, or progression data.');
+    }
+
+    const commissionerUserId =
+      bundle.users?.find((user) => user.role === 'admin')?.id ??
+      bundle.activeUserId ??
+      COMMISSIONER_USER_ID;
+    if (bundle.users?.length) {
+      this.store.upsertUsers(
+        bundle.users.map((user) => ({
+          ...user,
+          accessStatus: user.accessStatus ?? 'active',
+        }))
+      );
+    }
+
+    const leagueStore = this.getLeagueStore();
+    const existingLeague = leagueStore.getLeague(bundle.dynasty.id);
+    if (!existingLeague) {
+      leagueStore.createLeague({
+        id: bundle.dynasty.id,
+        name: bundle.dynasty.name,
+        startingSeasonYear: bundle.dynasty.currentSeasonYear,
+        commissionerUserId,
+      });
+    }
+
+    for (const tenure of bundle.teamTenures ?? []) {
+      this.store.saveTenure(tenure);
+    }
+
+    await this.switchActiveLeague(bundle.dynasty.id);
+    const postseasonResults = bundle.postseasonResults ?? bundle.dynasty.postseasonResults ?? [];
+    const seasons = bundle.dynasty.seasons.map((season) =>
+      applyPostseasonAchievementsToSeason(season, postseasonResults)
+    );
+    const demoDynasty: Dynasty = {
+      ...bundle.dynasty,
+      seasons,
+      rankings: bundle.dynasty.rankings ?? bundle.rankings ?? [],
+      checkpoints: bundle.checkpoints ?? bundle.dynasty.checkpoints ?? [],
+      playerCatalog: bundle.playerCatalog ?? bundle.dynasty.playerCatalog ?? [],
+      postseasonResults,
+    };
+    this.dynastyState = {
+      dynastyId: demoDynasty.id,
+      currentSeasonYear: demoDynasty.currentSeasonYear,
+      archivedSeasons: seasons,
+      archivedRankings: demoDynasty.rankings ?? [],
+      teamRosterSnapshots: demoDynasty.teamRosterSnapshots ?? [],
+      checkpoints: demoDynasty.checkpoints ?? [],
+      progression: bundle.progression,
+      playerCatalog: demoDynasty.playerCatalog ?? [],
+      postseasonResults,
+      scheduleImports: [],
+      top25Imports: [],
+    };
+    this.persistDynastyState();
+
+    for (const [teamId, roster] of Object.entries(bundle.rosters)) {
+      const team = bundle.teams.find((item) => item.id === teamId);
+      if (!team) continue;
+      this.store.saveRosterImport({
+        dynastyId: demoDynasty.id,
+        team,
+        roster,
+        sourceLabel: 'Demo mode roster',
+        fixtureId: `demo-mode-roster-${teamId}`,
+      });
+    }
+
+    const payload = createSyncPayload(
+      commissionerUserId,
+      demoDynasty,
+      bundle.teams,
+      bundle.rosters,
+      bundle.progression,
+      {
+        checkpoints: demoDynasty.checkpoints,
+        playerCatalog: demoDynasty.playerCatalog,
+        postseasonResults: demoDynasty.postseasonResults,
+        teamTenures: bundle.teamTenures ?? this.listTenures(bundle.dynasty.id),
+      }
+    );
+    const response = await apiRequest<{ updated?: boolean; batch?: { id: string } }>('/sync/batches', {
+      method: 'POST',
+      body: JSON.stringify({ payload }),
+    });
+
+    this.store.recordPublishedBatch(payload);
+    await this.writeHostedStateMirror();
+    return {
+      dynastyId: bundle.dynasty.id,
+      leagueName: bundle.dynasty.name,
+      batchId: response.batch?.id ?? payload.batchId,
+      updated: response.updated ?? true,
+      userCount: bundle.users?.length ?? 0,
+      tenureCount: bundle.teamTenures?.length ?? 0,
     };
   }
 

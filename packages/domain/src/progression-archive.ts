@@ -3,6 +3,7 @@ import type {
   PlayerId,
   RankingSnapshot,
   ScheduleGame,
+  Season,
   SeasonStanding,
   TeamId,
 } from './types.js';
@@ -123,6 +124,7 @@ export interface DynastyArchiveSummary {
   playerCatalogCount: number;
   postseasonResultCount: number;
   checkpoints: DynastyCheckpoint[];
+  archivedSeasons: Season[];
   playerCatalog: PlayerCatalogEntry[];
   postseasonResults: PostseasonResult[];
   coachArchiveBuckets: CoachTeamArchiveBucket[];

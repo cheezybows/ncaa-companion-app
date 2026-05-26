@@ -22,6 +22,8 @@ export interface Team {
   ranking?: number;
   primaryColor?: string;
   secondaryColor?: string;
+  logoUrl?: string;
+  logoAltUrl?: string;
 }
 
 export type Position =
@@ -186,10 +188,24 @@ export interface RankingSnapshot {
   dynastyId: DynastyId;
   seasonYear: number;
   pollType: 'top25';
+  week?: number;
   capturedAt: string;
   entries: RankingEntry[];
   sourceLabel?: string;
   fixtureId?: string;
+}
+
+export interface HeismanWinner {
+  seasonYear: number;
+  playerName: string;
+  teamId: TeamId;
+  playerId?: PlayerId;
+  position?: Position;
+  classYear?: PlayerClass;
+  overall?: number;
+  userId?: string;
+  coachName?: string;
+  matchedRosterPlayer: boolean;
 }
 
 export interface Season {
@@ -202,6 +218,7 @@ export interface Season {
   conferenceChampionTeamIds?: TeamId[];
   playoffTeamIds?: TeamId[];
   nationalChampionTeamId?: TeamId;
+  heismanWinner?: HeismanWinner;
 }
 
 export interface Recruit {

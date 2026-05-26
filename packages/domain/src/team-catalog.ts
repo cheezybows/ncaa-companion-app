@@ -6,6 +6,8 @@ type TeamSeed = {
   conferenceId: string;
   primaryColor?: string;
   secondaryColor?: string;
+  logoUrl?: string;
+  logoAltUrl?: string;
 };
 
 const TEAM_SEEDS: TeamSeed[] = [
@@ -186,13 +188,18 @@ function slugify(value: string): string {
     .replace(/(^-|-$)/g, '');
 }
 
-export const NCAA_TEAM_CATALOG: Team[] = TEAM_SEEDS.map((seed) => ({
-  id: `team-${slugify(seed.name)}`,
-  name: seed.name,
-  abbreviation: seed.abbreviation,
-  conferenceId: seed.conferenceId,
-  primaryColor: seed.primaryColor ?? '#1d4ed8',
-  secondaryColor: seed.secondaryColor ?? '#f8fafc',
-}));
+export const NCAA_TEAM_CATALOG: Team[] = TEAM_SEEDS.map((seed) => {
+  const id = `team-${slugify(seed.name)}`;
+  return {
+    id,
+    name: seed.name,
+    abbreviation: seed.abbreviation,
+    conferenceId: seed.conferenceId,
+    primaryColor: seed.primaryColor ?? '#1d4ed8',
+    secondaryColor: seed.secondaryColor ?? '#f8fafc',
+    logoUrl: seed.logoUrl ?? `/teams/${id}.png`,
+    logoAltUrl: seed.logoAltUrl,
+  };
+});
 
 export const NCAA_TEAM_COUNT = NCAA_TEAM_CATALOG.length;

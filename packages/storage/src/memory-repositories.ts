@@ -77,6 +77,14 @@ export class MemoryCommissionerRepository {
     return [...this.users];
   }
 
+  deleteUsers(userIds: string[]): number {
+    const ids = new Set(userIds);
+    const before = this.users.length;
+    this.users = this.users.filter((user) => !ids.has(user.id));
+    this.tenures = this.tenures.filter((tenure) => !ids.has(tenure.userId));
+    return before - this.users.length;
+  }
+
   listTeamConferenceOverrides(): Record<string, string> {
     return Object.fromEntries(this.teamConferenceOverrides.entries());
   }

@@ -3,12 +3,6 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import type { OpenDialogOptions, SaveDialogOptions } from 'electron';
-import {
-  PLACEHOLDER_DYNASTY,
-  PLACEHOLDER_PROGRESSION,
-  PLACEHOLDER_ROSTERS,
-  PLACEHOLDER_TEAMS,
-} from '@ncaa/domain';
 import type { Team } from '@ncaa/domain';
 import {
   importRosterFromOcrPages,
@@ -82,6 +76,10 @@ function getRendererEntry(): string {
   return `file://${join(__dirname, '../../../web/dist/index.html')}`;
 }
 
+function getDemoDynastyFixturePath(): string {
+  return join(__dirname, '../../portal/public/temp_screenshots/demo-dynasty.json');
+}
+
 async function waitForAppReady(timeoutMs = 20000): Promise<void> {
   logStartup('Waiting for app.whenReady()...');
   await Promise.race([
@@ -113,7 +111,6 @@ async function initStorage(): Promise<void> {
   }
   commissionerService = new CommissionerService(commissionerStore, hostedStateMirrorPath);
   await commissionerService.loadHostedStateMirror();
-  await commissionerService.refreshUsers();
   await commissionerService.writeHostedStateMirror();
   logStartup(`Hosted state mirror ready (${hostedStateMirrorPath})`);
 }
@@ -344,6 +341,10 @@ function registerIpc(): void {
     commissionerService.undoLatestScheduleImport(input)
   );
 
+  ipcMain.handle('capture:undo-latest-top25-import', async () =>
+    commissionerService.undoLatestTop25Import()
+  );
+
   ipcMain.handle('commissioner:get-config', async () => commissionerService.getCommissionerConfig());
 
   ipcMain.handle('commissioner:list-users', async () => commissionerService.listUsers());
@@ -374,6 +375,10 @@ function registerIpc(): void {
     ) => commissionerService.saveUser(input)
   );
 
+  ipcMain.handle('commissioner:delete-user', async (_event, userId: string) =>
+    commissionerService.deleteUser(userId)
+  );
+
   ipcMain.handle('commissioner:list-coaches', async () => commissionerService.listCoaches());
 
   ipcMain.handle('commissioner:refresh-users', async () => commissionerService.refreshUsers());
@@ -399,6 +404,10 @@ function registerIpc(): void {
   );
 
   ipcMain.handle('commissioner:publish', async () => commissionerService.publishToHosted());
+
+  ipcMain.handle('commissioner:install-demo-mode', async () =>
+    commissionerService.installDemoModeFromFile(getDemoDynastyFixturePath())
+  );
 
   ipcMain.handle('commissioner:publish-history', async (_event, dynastyId?: string) =>
     commissionerService.listPublishHistory(dynastyId)
@@ -430,8 +439,8 @@ function registerIpc(): void {
     commissionerService.previewSeasonAdvance(assignments)
   );
 
-  ipcMain.handle('commissioner:advance-season', async (_event, assignments) =>
-    commissionerService.advanceToNextSeason(assignments)
+  ipcMain.handle('commissioner:advance-season', async (_event, assignments, heisman) =>
+    commissionerService.advanceToNextSeason(assignments, heisman)
   );
 
   ipcMain.handle('commissioner:preview-week-advance', async () =>
@@ -484,10 +493,7 @@ function registerIpc(): void {
       JSON.stringify(
         {
           exportedAt: new Date().toISOString(),
-          teams: PLACEHOLDER_TEAMS,
-          rosters: PLACEHOLDER_ROSTERS,
-          dynasty: PLACEHOLDER_DYNASTY,
-          progression: PLACEHOLDER_PROGRESSION,
+          payload: commissionerService.buildPublishPayload(),
         },
         null,
         2

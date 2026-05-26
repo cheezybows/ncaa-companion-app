@@ -10,6 +10,7 @@ import type {
   ScanSession,
   ScheduleGame,
   SeasonAdvanceAssignmentInput,
+  SeasonAdvanceHeismanInput,
   SeasonAdvancePreview,
   SeasonAdvanceResult,
   Team,
@@ -84,6 +85,15 @@ export interface PublishResult {
   updated: boolean;
 }
 
+export interface DemoModeResult {
+  dynastyId: string;
+  leagueName: string;
+  batchId: string;
+  updated: boolean;
+  userCount: number;
+  tenureCount: number;
+}
+
 export interface CompanionApi {
   getSummary(): Promise<AppSummary>;
   chooseAndScanFolder(): Promise<ScanResult | null>;
@@ -129,6 +139,7 @@ export interface CompanionApi {
     dynastyId: string;
     teamId: string;
   }): Promise<{ removedScheduleImports: number }>;
+  undoLatestTop25Import?(): Promise<{ removedTop25Imports: number }>;
   getCommissionerConfig?(): Promise<CommissionerConfig>;
   listUsers?(): Promise<AppUser[]>;
   listTeams?(): Promise<Team[]>;
@@ -143,6 +154,7 @@ export interface CompanionApi {
     temporaryPassword?: string;
     passwordResetRequired?: boolean;
   }): Promise<AppUser>;
+  deleteUser?(userId: string): Promise<{ removedUsers: number }>;
   listCoaches?(): Promise<AppUser[]>;
   refreshHostedUsers?(): Promise<AppUser[]>;
   listCommissionerTenures?(dynastyId?: string): Promise<TeamTenure[]>;
@@ -154,11 +166,15 @@ export interface CompanionApi {
   }): Promise<TeamTenure>;
   listRosterImports?(dynastyId?: string): Promise<RosterImportRecord[]>;
   publishToHosted?(): Promise<PublishResult>;
+  installDemoMode?(): Promise<DemoModeResult>;
   listPublishHistory?(dynastyId?: string): Promise<PublishedBatchRecord[]>;
   previewSeasonAdvance?(
     assignments?: SeasonAdvanceAssignmentInput[]
   ): Promise<SeasonAdvancePreview>;
-  advanceToNextSeason?(assignments: SeasonAdvanceAssignmentInput[]): Promise<SeasonAdvanceResult>;
+  advanceToNextSeason?(
+    assignments: SeasonAdvanceAssignmentInput[],
+    heisman?: SeasonAdvanceHeismanInput
+  ): Promise<SeasonAdvanceResult>;
   previewWeekAdvance?(): Promise<WeekAdvancePreview>;
   advanceToNextWeek?(): Promise<WeekAdvanceResult>;
   getDynastyArchiveSummary?(): Promise<DynastyArchiveSummary>;

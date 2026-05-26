@@ -474,15 +474,19 @@ export function applyPostseasonAchievementsToSeason(
   const playoffTeamIds = [
     ...new Set(forSeason.filter((item) => item.kind === 'playoff').map((item) => item.teamId)),
   ];
-  const nationalChampion = forSeason.find(
-    (item) => item.kind === 'national_championship' && item.isChampion
-  );
+  const nationalChampion =
+    forSeason.find((item) => item.kind === 'national_championship' && item.isChampion) ??
+    forSeason.find(
+      (item) =>
+        item.isChampion &&
+        /\bnational\b/i.test(`${item.titleLabel ?? ''} ${item.round ?? ''}`)
+    );
 
   return {
     ...season,
     conferenceChampionTeamIds,
     playoffTeamIds,
-    nationalChampionTeamId: nationalChampion?.teamId,
+    nationalChampionTeamId: nationalChampion?.teamId ?? season.nationalChampionTeamId,
   };
 }
 

@@ -8,11 +8,12 @@
     "packages/*"
   ],
   "scripts": {
-    "build:packages": "npm run build -w @ncaa/domain && npm run build -w @ncaa/parsers && npm run build -w @ncaa/storage && npm run build -w @ncaa/auth && npm run build -w @ncaa/sync",
+    "build:packages": "npm run build -w @ncaa/domain && npm run build -w @ncaa/parsers && npm run build -w @ncaa/storage && npm run build -w @ncaa/auth && npm run build -w @ncaa/sync && npm run build -w @ncaa/ui",
     "dev": "npm run dev -w @ncaa/desktop",
     "dev:portal": "npm run dev -w @ncaa/portal",
     "dev:api": "npm run dev -w @ncaa/api",
     "dev:hosted": "concurrently -k \"npm run dev:api\" \"npm run dev:portal\"",
+    "import:team-logos": "node scripts/import-team-logos.cjs",
     "build": "npm run build:packages && npm run build -w @ncaa/desktop && npm run build -w @ncaa/portal && npm run build -w @ncaa/api",
     "test": "npm run build:packages && npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present"

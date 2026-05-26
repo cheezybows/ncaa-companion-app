@@ -20,6 +20,7 @@ describe('MemoryCommissionerRepository dynasty state', () => {
       archivedRankings: [],
       teamRosterSnapshots: [],
       checkpoints: [],
+      progression: [],
       playerCatalog: [],
       postseasonResults: [],
       scheduleImports: [],
@@ -73,6 +74,26 @@ describe('MemoryCommissionerRepository', () => {
       fixtureId: 'roster-import-test',
     });
     expect(repository.listRosterImports('dynasty-demo')).toHaveLength(1);
+  });
+
+  it('deletes users and their team tenures', () => {
+    const repository = new MemoryCommissionerRepository();
+    repository.upsertUsers(DEMO_USERS.filter((u) => u.role === 'coach'));
+    repository.saveTenure({
+      id: 'tenure-delete-user',
+      careerId: 'career-delete-user',
+      userId: 'user-coach-carter',
+      dynastyId: 'dynasty-demo',
+      teamId: 'team-alabama',
+      role: 'coach',
+      status: 'active',
+      startSeasonYear: 2026,
+      label: 'Delete user test',
+    });
+
+    expect(repository.deleteUsers(['user-coach-carter'])).toBe(1);
+    expect(repository.listUsers().some((user) => user.id === 'user-coach-carter')).toBe(false);
+    expect(repository.listTenures('dynasty-demo')).toHaveLength(0);
   });
 });
 

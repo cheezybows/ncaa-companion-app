@@ -1,0 +1,1666 @@
+{
+  "generatedAt": "2026-05-26T17:17:51.966Z",
+  "metadataSource": "https://raw.githubusercontent.com/sportsdataverse/cfbfastR-data/main/themes/logos.csv",
+  "sourceDir": "apps/portal/public/logos",
+  "matchedCount": 138,
+  "unmatchedCount": 0,
+  "copied": [
+    {
+      "teamId": "team-boston-college",
+      "name": "Boston College",
+      "abbreviation": "BC",
+      "cfbdTeamId": "103",
+      "cfbdSchool": "Boston College",
+      "logoUrl": "/teams/team-boston-college.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-boston-college.png",
+        "apps/portal/public/teams/team-boston-college.png"
+      ]
+    },
+    {
+      "teamId": "team-cal",
+      "name": "Cal",
+      "abbreviation": "CAL",
+      "cfbdTeamId": "25",
+      "cfbdSchool": "California",
+      "logoUrl": "/teams/team-cal.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-cal.png",
+        "apps/portal/public/teams/team-cal.png"
+      ]
+    },
+    {
+      "teamId": "team-clemson",
+      "name": "Clemson",
+      "abbreviation": "CLEM",
+      "cfbdTeamId": "228",
+      "cfbdSchool": "Clemson",
+      "logoUrl": "/teams/team-clemson.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-clemson.png",
+        "apps/portal/public/teams/team-clemson.png"
+      ]
+    },
+    {
+      "teamId": "team-duke",
+      "name": "Duke",
+      "abbreviation": "DUKE",
+      "cfbdTeamId": "150",
+      "cfbdSchool": "Duke",
+      "logoUrl": "/teams/team-duke.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-duke.png",
+        "apps/portal/public/teams/team-duke.png"
+      ]
+    },
+    {
+      "teamId": "team-florida-state",
+      "name": "Florida State",
+      "abbreviation": "FSU",
+      "cfbdTeamId": "52",
+      "cfbdSchool": "Florida State",
+      "logoUrl": "/teams/team-florida-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-florida-state.png",
+        "apps/portal/public/teams/team-florida-state.png"
+      ]
+    },
+    {
+      "teamId": "team-georgia-tech",
+      "name": "Georgia Tech",
+      "abbreviation": "GT",
+      "cfbdTeamId": "59",
+      "cfbdSchool": "Georgia Tech",
+      "logoUrl": "/teams/team-georgia-tech.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-georgia-tech.png",
+        "apps/portal/public/teams/team-georgia-tech.png"
+      ]
+    },
+    {
+      "teamId": "team-louisville",
+      "name": "Louisville",
+      "abbreviation": "LOU",
+      "cfbdTeamId": "97",
+      "cfbdSchool": "Louisville",
+      "logoUrl": "/teams/team-louisville.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-louisville.png",
+        "apps/portal/public/teams/team-louisville.png"
+      ]
+    },
+    {
+      "teamId": "team-miami",
+      "name": "Miami",
+      "abbreviation": "MIA",
+      "cfbdTeamId": "2390",
+      "cfbdSchool": "Miami",
+      "logoUrl": "/teams/team-miami.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-miami.png",
+        "apps/portal/public/teams/team-miami.png"
+      ]
+    },
+    {
+      "teamId": "team-nc-state",
+      "name": "NC State",
+      "abbreviation": "NCSU",
+      "cfbdTeamId": "152",
+      "cfbdSchool": "NC State",
+      "logoUrl": "/teams/team-nc-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-nc-state.png",
+        "apps/portal/public/teams/team-nc-state.png"
+      ]
+    },
+    {
+      "teamId": "team-north-carolina",
+      "name": "North Carolina",
+      "abbreviation": "UNC",
+      "cfbdTeamId": "153",
+      "cfbdSchool": "North Carolina",
+      "logoUrl": "/teams/team-north-carolina.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-north-carolina.png",
+        "apps/portal/public/teams/team-north-carolina.png"
+      ]
+    },
+    {
+      "teamId": "team-pitt",
+      "name": "Pitt",
+      "abbreviation": "PITT",
+      "cfbdTeamId": "221",
+      "cfbdSchool": "Pittsburgh",
+      "logoUrl": "/teams/team-pitt.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-pitt.png",
+        "apps/portal/public/teams/team-pitt.png"
+      ]
+    },
+    {
+      "teamId": "team-smu",
+      "name": "SMU",
+      "abbreviation": "SMU",
+      "cfbdTeamId": "2567",
+      "cfbdSchool": "SMU",
+      "logoUrl": "/teams/team-smu.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-smu.png",
+        "apps/portal/public/teams/team-smu.png"
+      ]
+    },
+    {
+      "teamId": "team-stanford",
+      "name": "Stanford",
+      "abbreviation": "STAN",
+      "cfbdTeamId": "24",
+      "cfbdSchool": "Stanford",
+      "logoUrl": "/teams/team-stanford.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-stanford.png",
+        "apps/portal/public/teams/team-stanford.png"
+      ]
+    },
+    {
+      "teamId": "team-syracuse",
+      "name": "Syracuse",
+      "abbreviation": "SYR",
+      "cfbdTeamId": "183",
+      "cfbdSchool": "Syracuse",
+      "logoUrl": "/teams/team-syracuse.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-syracuse.png",
+        "apps/portal/public/teams/team-syracuse.png"
+      ]
+    },
+    {
+      "teamId": "team-virginia",
+      "name": "Virginia",
+      "abbreviation": "UVA",
+      "cfbdTeamId": "258",
+      "cfbdSchool": "Virginia",
+      "logoUrl": "/teams/team-virginia.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-virginia.png",
+        "apps/portal/public/teams/team-virginia.png"
+      ]
+    },
+    {
+      "teamId": "team-virginia-tech",
+      "name": "Virginia Tech",
+      "abbreviation": "VT",
+      "cfbdTeamId": "259",
+      "cfbdSchool": "Virginia Tech",
+      "logoUrl": "/teams/team-virginia-tech.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-virginia-tech.png",
+        "apps/portal/public/teams/team-virginia-tech.png"
+      ]
+    },
+    {
+      "teamId": "team-wake-forest",
+      "name": "Wake Forest",
+      "abbreviation": "WAKE",
+      "cfbdTeamId": "154",
+      "cfbdSchool": "Wake Forest",
+      "logoUrl": "/teams/team-wake-forest.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-wake-forest.png",
+        "apps/portal/public/teams/team-wake-forest.png"
+      ]
+    },
+    {
+      "teamId": "team-illinois",
+      "name": "Illinois",
+      "abbreviation": "ILL",
+      "cfbdTeamId": "356",
+      "cfbdSchool": "Illinois",
+      "logoUrl": "/teams/team-illinois.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-illinois.png",
+        "apps/portal/public/teams/team-illinois.png"
+      ]
+    },
+    {
+      "teamId": "team-indiana",
+      "name": "Indiana",
+      "abbreviation": "IU",
+      "cfbdTeamId": "84",
+      "cfbdSchool": "Indiana",
+      "logoUrl": "/teams/team-indiana.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-indiana.png",
+        "apps/portal/public/teams/team-indiana.png"
+      ]
+    },
+    {
+      "teamId": "team-iowa",
+      "name": "Iowa",
+      "abbreviation": "IOWA",
+      "cfbdTeamId": "2294",
+      "cfbdSchool": "Iowa",
+      "logoUrl": "/teams/team-iowa.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-iowa.png",
+        "apps/portal/public/teams/team-iowa.png"
+      ]
+    },
+    {
+      "teamId": "team-maryland",
+      "name": "Maryland",
+      "abbreviation": "MD",
+      "cfbdTeamId": "120",
+      "cfbdSchool": "Maryland",
+      "logoUrl": "/teams/team-maryland.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-maryland.png",
+        "apps/portal/public/teams/team-maryland.png"
+      ]
+    },
+    {
+      "teamId": "team-michigan",
+      "name": "Michigan",
+      "abbreviation": "MICH",
+      "cfbdTeamId": "130",
+      "cfbdSchool": "Michigan",
+      "logoUrl": "/teams/team-michigan.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-michigan.png",
+        "apps/portal/public/teams/team-michigan.png"
+      ]
+    },
+    {
+      "teamId": "team-michigan-state",
+      "name": "Michigan State",
+      "abbreviation": "MSU",
+      "cfbdTeamId": "127",
+      "cfbdSchool": "Michigan State",
+      "logoUrl": "/teams/team-michigan-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-michigan-state.png",
+        "apps/portal/public/teams/team-michigan-state.png"
+      ]
+    },
+    {
+      "teamId": "team-minnesota",
+      "name": "Minnesota",
+      "abbreviation": "MINN",
+      "cfbdTeamId": "135",
+      "cfbdSchool": "Minnesota",
+      "logoUrl": "/teams/team-minnesota.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-minnesota.png",
+        "apps/portal/public/teams/team-minnesota.png"
+      ]
+    },
+    {
+      "teamId": "team-nebraska",
+      "name": "Nebraska",
+      "abbreviation": "NEB",
+      "cfbdTeamId": "158",
+      "cfbdSchool": "Nebraska",
+      "logoUrl": "/teams/team-nebraska.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-nebraska.png",
+        "apps/portal/public/teams/team-nebraska.png"
+      ]
+    },
+    {
+      "teamId": "team-northwestern",
+      "name": "Northwestern",
+      "abbreviation": "NU",
+      "cfbdTeamId": "77",
+      "cfbdSchool": "Northwestern",
+      "logoUrl": "/teams/team-northwestern.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-northwestern.png",
+        "apps/portal/public/teams/team-northwestern.png"
+      ]
+    },
+    {
+      "teamId": "team-ohio-state",
+      "name": "Ohio State",
+      "abbreviation": "OSU",
+      "cfbdTeamId": "194",
+      "cfbdSchool": "Ohio State",
+      "logoUrl": "/teams/team-ohio-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-ohio-state.png",
+        "apps/portal/public/teams/team-ohio-state.png"
+      ]
+    },
+    {
+      "teamId": "team-oregon",
+      "name": "Oregon",
+      "abbreviation": "ORE",
+      "cfbdTeamId": "2483",
+      "cfbdSchool": "Oregon",
+      "logoUrl": "/teams/team-oregon.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-oregon.png",
+        "apps/portal/public/teams/team-oregon.png"
+      ]
+    },
+    {
+      "teamId": "team-penn-state",
+      "name": "Penn State",
+      "abbreviation": "PSU",
+      "cfbdTeamId": "213",
+      "cfbdSchool": "Penn State",
+      "logoUrl": "/teams/team-penn-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-penn-state.png",
+        "apps/portal/public/teams/team-penn-state.png"
+      ]
+    },
+    {
+      "teamId": "team-purdue",
+      "name": "Purdue",
+      "abbreviation": "PUR",
+      "cfbdTeamId": "2509",
+      "cfbdSchool": "Purdue",
+      "logoUrl": "/teams/team-purdue.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-purdue.png",
+        "apps/portal/public/teams/team-purdue.png"
+      ]
+    },
+    {
+      "teamId": "team-rutgers",
+      "name": "Rutgers",
+      "abbreviation": "RUT",
+      "cfbdTeamId": "164",
+      "cfbdSchool": "Rutgers",
+      "logoUrl": "/teams/team-rutgers.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-rutgers.png",
+        "apps/portal/public/teams/team-rutgers.png"
+      ]
+    },
+    {
+      "teamId": "team-ucla",
+      "name": "UCLA",
+      "abbreviation": "UCLA",
+      "cfbdTeamId": "26",
+      "cfbdSchool": "UCLA",
+      "logoUrl": "/teams/team-ucla.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-ucla.png",
+        "apps/portal/public/teams/team-ucla.png"
+      ]
+    },
+    {
+      "teamId": "team-usc",
+      "name": "USC",
+      "abbreviation": "USC",
+      "cfbdTeamId": "30",
+      "cfbdSchool": "USC",
+      "logoUrl": "/teams/team-usc.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-usc.png",
+        "apps/portal/public/teams/team-usc.png"
+      ]
+    },
+    {
+      "teamId": "team-washington",
+      "name": "Washington",
+      "abbreviation": "WASH",
+      "cfbdTeamId": "264",
+      "cfbdSchool": "Washington",
+      "logoUrl": "/teams/team-washington.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-washington.png",
+        "apps/portal/public/teams/team-washington.png"
+      ]
+    },
+    {
+      "teamId": "team-wisconsin",
+      "name": "Wisconsin",
+      "abbreviation": "WIS",
+      "cfbdTeamId": "275",
+      "cfbdSchool": "Wisconsin",
+      "logoUrl": "/teams/team-wisconsin.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-wisconsin.png",
+        "apps/portal/public/teams/team-wisconsin.png"
+      ]
+    },
+    {
+      "teamId": "team-arizona",
+      "name": "Arizona",
+      "abbreviation": "ARIZ",
+      "cfbdTeamId": "12",
+      "cfbdSchool": "Arizona",
+      "logoUrl": "/teams/team-arizona.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-arizona.png",
+        "apps/portal/public/teams/team-arizona.png"
+      ]
+    },
+    {
+      "teamId": "team-arizona-state",
+      "name": "Arizona State",
+      "abbreviation": "ASU",
+      "cfbdTeamId": "9",
+      "cfbdSchool": "Arizona State",
+      "logoUrl": "/teams/team-arizona-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-arizona-state.png",
+        "apps/portal/public/teams/team-arizona-state.png"
+      ]
+    },
+    {
+      "teamId": "team-baylor",
+      "name": "Baylor",
+      "abbreviation": "BAY",
+      "cfbdTeamId": "239",
+      "cfbdSchool": "Baylor",
+      "logoUrl": "/teams/team-baylor.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-baylor.png",
+        "apps/portal/public/teams/team-baylor.png"
+      ]
+    },
+    {
+      "teamId": "team-byu",
+      "name": "BYU",
+      "abbreviation": "BYU",
+      "cfbdTeamId": "252",
+      "cfbdSchool": "BYU",
+      "logoUrl": "/teams/team-byu.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-byu.png",
+        "apps/portal/public/teams/team-byu.png"
+      ]
+    },
+    {
+      "teamId": "team-cincinnati",
+      "name": "Cincinnati",
+      "abbreviation": "CIN",
+      "cfbdTeamId": "2132",
+      "cfbdSchool": "Cincinnati",
+      "logoUrl": "/teams/team-cincinnati.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-cincinnati.png",
+        "apps/portal/public/teams/team-cincinnati.png"
+      ]
+    },
+    {
+      "teamId": "team-colorado",
+      "name": "Colorado",
+      "abbreviation": "COLO",
+      "cfbdTeamId": "38",
+      "cfbdSchool": "Colorado",
+      "logoUrl": "/teams/team-colorado.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-colorado.png",
+        "apps/portal/public/teams/team-colorado.png"
+      ]
+    },
+    {
+      "teamId": "team-houston",
+      "name": "Houston",
+      "abbreviation": "HOU",
+      "cfbdTeamId": "248",
+      "cfbdSchool": "Houston",
+      "logoUrl": "/teams/team-houston.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-houston.png",
+        "apps/portal/public/teams/team-houston.png"
+      ]
+    },
+    {
+      "teamId": "team-iowa-state",
+      "name": "Iowa State",
+      "abbreviation": "ISU",
+      "cfbdTeamId": "66",
+      "cfbdSchool": "Iowa State",
+      "logoUrl": "/teams/team-iowa-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-iowa-state.png",
+        "apps/portal/public/teams/team-iowa-state.png"
+      ]
+    },
+    {
+      "teamId": "team-kansas",
+      "name": "Kansas",
+      "abbreviation": "KU",
+      "cfbdTeamId": "2305",
+      "cfbdSchool": "Kansas",
+      "logoUrl": "/teams/team-kansas.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-kansas.png",
+        "apps/portal/public/teams/team-kansas.png"
+      ]
+    },
+    {
+      "teamId": "team-kansas-state",
+      "name": "Kansas State",
+      "abbreviation": "KSU",
+      "cfbdTeamId": "2306",
+      "cfbdSchool": "Kansas State",
+      "logoUrl": "/teams/team-kansas-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-kansas-state.png",
+        "apps/portal/public/teams/team-kansas-state.png"
+      ]
+    },
+    {
+      "teamId": "team-oklahoma-state",
+      "name": "Oklahoma State",
+      "abbreviation": "OKST",
+      "cfbdTeamId": "197",
+      "cfbdSchool": "Oklahoma State",
+      "logoUrl": "/teams/team-oklahoma-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-oklahoma-state.png",
+        "apps/portal/public/teams/team-oklahoma-state.png"
+      ]
+    },
+    {
+      "teamId": "team-tcu",
+      "name": "TCU",
+      "abbreviation": "TCU",
+      "cfbdTeamId": "2628",
+      "cfbdSchool": "TCU",
+      "logoUrl": "/teams/team-tcu.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-tcu.png",
+        "apps/portal/public/teams/team-tcu.png"
+      ]
+    },
+    {
+      "teamId": "team-texas-tech",
+      "name": "Texas Tech",
+      "abbreviation": "TTU",
+      "cfbdTeamId": "2641",
+      "cfbdSchool": "Texas Tech",
+      "logoUrl": "/teams/team-texas-tech.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-texas-tech.png",
+        "apps/portal/public/teams/team-texas-tech.png"
+      ]
+    },
+    {
+      "teamId": "team-ucf",
+      "name": "UCF",
+      "abbreviation": "UCF",
+      "cfbdTeamId": "2116",
+      "cfbdSchool": "UCF",
+      "logoUrl": "/teams/team-ucf.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-ucf.png",
+        "apps/portal/public/teams/team-ucf.png"
+      ]
+    },
+    {
+      "teamId": "team-utah",
+      "name": "Utah",
+      "abbreviation": "UTAH",
+      "cfbdTeamId": "254",
+      "cfbdSchool": "Utah",
+      "logoUrl": "/teams/team-utah.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-utah.png",
+        "apps/portal/public/teams/team-utah.png"
+      ]
+    },
+    {
+      "teamId": "team-west-virginia",
+      "name": "West Virginia",
+      "abbreviation": "WVU",
+      "cfbdTeamId": "277",
+      "cfbdSchool": "West Virginia",
+      "logoUrl": "/teams/team-west-virginia.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-west-virginia.png",
+        "apps/portal/public/teams/team-west-virginia.png"
+      ]
+    },
+    {
+      "teamId": "team-alabama",
+      "name": "Alabama",
+      "abbreviation": "ALA",
+      "cfbdTeamId": "333",
+      "cfbdSchool": "Alabama",
+      "logoUrl": "/teams/team-alabama.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-alabama.png",
+        "apps/portal/public/teams/team-alabama.png"
+      ]
+    },
+    {
+      "teamId": "team-arkansas",
+      "name": "Arkansas",
+      "abbreviation": "ARK",
+      "cfbdTeamId": "8",
+      "cfbdSchool": "Arkansas",
+      "logoUrl": "/teams/team-arkansas.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-arkansas.png",
+        "apps/portal/public/teams/team-arkansas.png"
+      ]
+    },
+    {
+      "teamId": "team-auburn",
+      "name": "Auburn",
+      "abbreviation": "AUB",
+      "cfbdTeamId": "2",
+      "cfbdSchool": "Auburn",
+      "logoUrl": "/teams/team-auburn.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-auburn.png",
+        "apps/portal/public/teams/team-auburn.png"
+      ]
+    },
+    {
+      "teamId": "team-florida",
+      "name": "Florida",
+      "abbreviation": "FLA",
+      "cfbdTeamId": "57",
+      "cfbdSchool": "Florida",
+      "logoUrl": "/teams/team-florida.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-florida.png",
+        "apps/portal/public/teams/team-florida.png"
+      ]
+    },
+    {
+      "teamId": "team-georgia",
+      "name": "Georgia",
+      "abbreviation": "UGA",
+      "cfbdTeamId": "61",
+      "cfbdSchool": "Georgia",
+      "logoUrl": "/teams/team-georgia.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-georgia.png",
+        "apps/portal/public/teams/team-georgia.png"
+      ]
+    },
+    {
+      "teamId": "team-kentucky",
+      "name": "Kentucky",
+      "abbreviation": "UK",
+      "cfbdTeamId": "96",
+      "cfbdSchool": "Kentucky",
+      "logoUrl": "/teams/team-kentucky.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-kentucky.png",
+        "apps/portal/public/teams/team-kentucky.png"
+      ]
+    },
+    {
+      "teamId": "team-lsu",
+      "name": "LSU",
+      "abbreviation": "LSU",
+      "cfbdTeamId": "99",
+      "cfbdSchool": "LSU",
+      "logoUrl": "/teams/team-lsu.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-lsu.png",
+        "apps/portal/public/teams/team-lsu.png"
+      ]
+    },
+    {
+      "teamId": "team-mississippi-state",
+      "name": "Mississippi State",
+      "abbreviation": "MSST",
+      "cfbdTeamId": "344",
+      "cfbdSchool": "Mississippi State",
+      "logoUrl": "/teams/team-mississippi-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-mississippi-state.png",
+        "apps/portal/public/teams/team-mississippi-state.png"
+      ]
+    },
+    {
+      "teamId": "team-missouri",
+      "name": "Missouri",
+      "abbreviation": "MIZ",
+      "cfbdTeamId": "142",
+      "cfbdSchool": "Missouri",
+      "logoUrl": "/teams/team-missouri.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-missouri.png",
+        "apps/portal/public/teams/team-missouri.png"
+      ]
+    },
+    {
+      "teamId": "team-oklahoma",
+      "name": "Oklahoma",
+      "abbreviation": "OU",
+      "cfbdTeamId": "201",
+      "cfbdSchool": "Oklahoma",
+      "logoUrl": "/teams/team-oklahoma.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-oklahoma.png",
+        "apps/portal/public/teams/team-oklahoma.png"
+      ]
+    },
+    {
+      "teamId": "team-ole-miss",
+      "name": "Ole Miss",
+      "abbreviation": "MISS",
+      "cfbdTeamId": "145",
+      "cfbdSchool": "Ole Miss",
+      "logoUrl": "/teams/team-ole-miss.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-ole-miss.png",
+        "apps/portal/public/teams/team-ole-miss.png"
+      ]
+    },
+    {
+      "teamId": "team-south-carolina",
+      "name": "South Carolina",
+      "abbreviation": "SCAR",
+      "cfbdTeamId": "2579",
+      "cfbdSchool": "South Carolina",
+      "logoUrl": "/teams/team-south-carolina.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-south-carolina.png",
+        "apps/portal/public/teams/team-south-carolina.png"
+      ]
+    },
+    {
+      "teamId": "team-tennessee",
+      "name": "Tennessee",
+      "abbreviation": "TENN",
+      "cfbdTeamId": "2633",
+      "cfbdSchool": "Tennessee",
+      "logoUrl": "/teams/team-tennessee.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-tennessee.png",
+        "apps/portal/public/teams/team-tennessee.png"
+      ]
+    },
+    {
+      "teamId": "team-texas",
+      "name": "Texas",
+      "abbreviation": "TEX",
+      "cfbdTeamId": "251",
+      "cfbdSchool": "Texas",
+      "logoUrl": "/teams/team-texas.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-texas.png",
+        "apps/portal/public/teams/team-texas.png"
+      ]
+    },
+    {
+      "teamId": "team-texas-aandm",
+      "name": "Texas A&M",
+      "abbreviation": "TAMU",
+      "cfbdTeamId": "245",
+      "cfbdSchool": "Texas A&M",
+      "logoUrl": "/teams/team-texas-aandm.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-texas-aandm.png",
+        "apps/portal/public/teams/team-texas-aandm.png"
+      ]
+    },
+    {
+      "teamId": "team-vanderbilt",
+      "name": "Vanderbilt",
+      "abbreviation": "VAN",
+      "cfbdTeamId": "238",
+      "cfbdSchool": "Vanderbilt",
+      "logoUrl": "/teams/team-vanderbilt.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-vanderbilt.png",
+        "apps/portal/public/teams/team-vanderbilt.png"
+      ]
+    },
+    {
+      "teamId": "team-army",
+      "name": "Army",
+      "abbreviation": "ARMY",
+      "cfbdTeamId": "349",
+      "cfbdSchool": "Army",
+      "logoUrl": "/teams/team-army.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-army.png",
+        "apps/portal/public/teams/team-army.png"
+      ]
+    },
+    {
+      "teamId": "team-charlotte",
+      "name": "Charlotte",
+      "abbreviation": "CLT",
+      "cfbdTeamId": "2429",
+      "cfbdSchool": "Charlotte",
+      "logoUrl": "/teams/team-charlotte.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-charlotte.png",
+        "apps/portal/public/teams/team-charlotte.png"
+      ]
+    },
+    {
+      "teamId": "team-east-carolina",
+      "name": "East Carolina",
+      "abbreviation": "ECU",
+      "cfbdTeamId": "151",
+      "cfbdSchool": "East Carolina",
+      "logoUrl": "/teams/team-east-carolina.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-east-carolina.png",
+        "apps/portal/public/teams/team-east-carolina.png"
+      ]
+    },
+    {
+      "teamId": "team-fau",
+      "name": "FAU",
+      "abbreviation": "FAU",
+      "cfbdTeamId": "2226",
+      "cfbdSchool": "Florida Atlantic",
+      "logoUrl": "/teams/team-fau.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-fau.png",
+        "apps/portal/public/teams/team-fau.png"
+      ]
+    },
+    {
+      "teamId": "team-memphis",
+      "name": "Memphis",
+      "abbreviation": "MEM",
+      "cfbdTeamId": "235",
+      "cfbdSchool": "Memphis",
+      "logoUrl": "/teams/team-memphis.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-memphis.png",
+        "apps/portal/public/teams/team-memphis.png"
+      ]
+    },
+    {
+      "teamId": "team-navy",
+      "name": "Navy",
+      "abbreviation": "NAVY",
+      "cfbdTeamId": "2426",
+      "cfbdSchool": "Navy",
+      "logoUrl": "/teams/team-navy.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-navy.png",
+        "apps/portal/public/teams/team-navy.png"
+      ]
+    },
+    {
+      "teamId": "team-north-texas",
+      "name": "North Texas",
+      "abbreviation": "UNT",
+      "cfbdTeamId": "249",
+      "cfbdSchool": "North Texas",
+      "logoUrl": "/teams/team-north-texas.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-north-texas.png",
+        "apps/portal/public/teams/team-north-texas.png"
+      ]
+    },
+    {
+      "teamId": "team-rice",
+      "name": "Rice",
+      "abbreviation": "RICE",
+      "cfbdTeamId": "242",
+      "cfbdSchool": "Rice",
+      "logoUrl": "/teams/team-rice.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-rice.png",
+        "apps/portal/public/teams/team-rice.png"
+      ]
+    },
+    {
+      "teamId": "team-south-florida",
+      "name": "South Florida",
+      "abbreviation": "USF",
+      "cfbdTeamId": "58",
+      "cfbdSchool": "South Florida",
+      "logoUrl": "/teams/team-south-florida.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-south-florida.png",
+        "apps/portal/public/teams/team-south-florida.png"
+      ]
+    },
+    {
+      "teamId": "team-temple",
+      "name": "Temple",
+      "abbreviation": "TEM",
+      "cfbdTeamId": "218",
+      "cfbdSchool": "Temple",
+      "logoUrl": "/teams/team-temple.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-temple.png",
+        "apps/portal/public/teams/team-temple.png"
+      ]
+    },
+    {
+      "teamId": "team-tulane",
+      "name": "Tulane",
+      "abbreviation": "TULN",
+      "cfbdTeamId": "2655",
+      "cfbdSchool": "Tulane",
+      "logoUrl": "/teams/team-tulane.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-tulane.png",
+        "apps/portal/public/teams/team-tulane.png"
+      ]
+    },
+    {
+      "teamId": "team-tulsa",
+      "name": "Tulsa",
+      "abbreviation": "TLSA",
+      "cfbdTeamId": "202",
+      "cfbdSchool": "Tulsa",
+      "logoUrl": "/teams/team-tulsa.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-tulsa.png",
+        "apps/portal/public/teams/team-tulsa.png"
+      ]
+    },
+    {
+      "teamId": "team-uab",
+      "name": "UAB",
+      "abbreviation": "UAB",
+      "cfbdTeamId": "5",
+      "cfbdSchool": "UAB",
+      "logoUrl": "/teams/team-uab.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-uab.png",
+        "apps/portal/public/teams/team-uab.png"
+      ]
+    },
+    {
+      "teamId": "team-utsa",
+      "name": "UTSA",
+      "abbreviation": "UTSA",
+      "cfbdTeamId": "2636",
+      "cfbdSchool": "UT San Antonio",
+      "logoUrl": "/teams/team-utsa.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-utsa.png",
+        "apps/portal/public/teams/team-utsa.png"
+      ]
+    },
+    {
+      "teamId": "team-delaware",
+      "name": "Delaware",
+      "abbreviation": "DEL",
+      "cfbdTeamId": "48",
+      "cfbdSchool": "Delaware",
+      "logoUrl": "/teams/team-delaware.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-delaware.png",
+        "apps/portal/public/teams/team-delaware.png"
+      ]
+    },
+    {
+      "teamId": "team-fiu",
+      "name": "FIU",
+      "abbreviation": "FIU",
+      "cfbdTeamId": "2229",
+      "cfbdSchool": "Florida International",
+      "logoUrl": "/teams/team-fiu.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-fiu.png",
+        "apps/portal/public/teams/team-fiu.png"
+      ]
+    },
+    {
+      "teamId": "team-jacksonville-state",
+      "name": "Jacksonville State",
+      "abbreviation": "JVST",
+      "cfbdTeamId": "55",
+      "cfbdSchool": "Jacksonville State",
+      "logoUrl": "/teams/team-jacksonville-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-jacksonville-state.png",
+        "apps/portal/public/teams/team-jacksonville-state.png"
+      ]
+    },
+    {
+      "teamId": "team-kennesaw-state",
+      "name": "Kennesaw State",
+      "abbreviation": "KENN",
+      "cfbdTeamId": "338",
+      "cfbdSchool": "Kennesaw State",
+      "logoUrl": "/teams/team-kennesaw-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-kennesaw-state.png",
+        "apps/portal/public/teams/team-kennesaw-state.png"
+      ]
+    },
+    {
+      "teamId": "team-liberty",
+      "name": "Liberty",
+      "abbreviation": "LIB",
+      "cfbdTeamId": "2335",
+      "cfbdSchool": "Liberty",
+      "logoUrl": "/teams/team-liberty.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-liberty.png",
+        "apps/portal/public/teams/team-liberty.png"
+      ]
+    },
+    {
+      "teamId": "team-louisiana-tech",
+      "name": "Louisiana Tech",
+      "abbreviation": "LT",
+      "cfbdTeamId": "2348",
+      "cfbdSchool": "Louisiana Tech",
+      "logoUrl": "/teams/team-louisiana-tech.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-louisiana-tech.png",
+        "apps/portal/public/teams/team-louisiana-tech.png"
+      ]
+    },
+    {
+      "teamId": "team-middle-tennessee",
+      "name": "Middle Tennessee",
+      "abbreviation": "MTSU",
+      "cfbdTeamId": "2393",
+      "cfbdSchool": "Middle Tennessee",
+      "logoUrl": "/teams/team-middle-tennessee.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-middle-tennessee.png",
+        "apps/portal/public/teams/team-middle-tennessee.png"
+      ]
+    },
+    {
+      "teamId": "team-missouri-state",
+      "name": "Missouri State",
+      "abbreviation": "MOST",
+      "cfbdTeamId": "2623",
+      "cfbdSchool": "Missouri State",
+      "logoUrl": "/teams/team-missouri-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-missouri-state.png",
+        "apps/portal/public/teams/team-missouri-state.png"
+      ]
+    },
+    {
+      "teamId": "team-new-mexico-state",
+      "name": "New Mexico State",
+      "abbreviation": "NMSU",
+      "cfbdTeamId": "166",
+      "cfbdSchool": "New Mexico State",
+      "logoUrl": "/teams/team-new-mexico-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-new-mexico-state.png",
+        "apps/portal/public/teams/team-new-mexico-state.png"
+      ]
+    },
+    {
+      "teamId": "team-sam-houston",
+      "name": "Sam Houston",
+      "abbreviation": "SHSU",
+      "cfbdTeamId": "2534",
+      "cfbdSchool": "Sam Houston State",
+      "logoUrl": "/teams/team-sam-houston.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-sam-houston.png",
+        "apps/portal/public/teams/team-sam-houston.png"
+      ]
+    },
+    {
+      "teamId": "team-utep",
+      "name": "UTEP",
+      "abbreviation": "UTEP",
+      "cfbdTeamId": "2638",
+      "cfbdSchool": "UTEP",
+      "logoUrl": "/teams/team-utep.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-utep.png",
+        "apps/portal/public/teams/team-utep.png"
+      ]
+    },
+    {
+      "teamId": "team-western-kentucky",
+      "name": "Western Kentucky",
+      "abbreviation": "WKU",
+      "cfbdTeamId": "98",
+      "cfbdSchool": "Western Kentucky",
+      "logoUrl": "/teams/team-western-kentucky.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-western-kentucky.png",
+        "apps/portal/public/teams/team-western-kentucky.png"
+      ]
+    },
+    {
+      "teamId": "team-akron",
+      "name": "Akron",
+      "abbreviation": "AKR",
+      "cfbdTeamId": "2006",
+      "cfbdSchool": "Akron",
+      "logoUrl": "/teams/team-akron.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-akron.png",
+        "apps/portal/public/teams/team-akron.png"
+      ]
+    },
+    {
+      "teamId": "team-ball-state",
+      "name": "Ball State",
+      "abbreviation": "BALL",
+      "cfbdTeamId": "2050",
+      "cfbdSchool": "Ball State",
+      "logoUrl": "/teams/team-ball-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-ball-state.png",
+        "apps/portal/public/teams/team-ball-state.png"
+      ]
+    },
+    {
+      "teamId": "team-bowling-green",
+      "name": "Bowling Green",
+      "abbreviation": "BGSU",
+      "cfbdTeamId": "189",
+      "cfbdSchool": "Bowling Green",
+      "logoUrl": "/teams/team-bowling-green.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-bowling-green.png",
+        "apps/portal/public/teams/team-bowling-green.png"
+      ]
+    },
+    {
+      "teamId": "team-buffalo",
+      "name": "Buffalo",
+      "abbreviation": "BUFF",
+      "cfbdTeamId": "2084",
+      "cfbdSchool": "Buffalo",
+      "logoUrl": "/teams/team-buffalo.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-buffalo.png",
+        "apps/portal/public/teams/team-buffalo.png"
+      ]
+    },
+    {
+      "teamId": "team-central-michigan",
+      "name": "Central Michigan",
+      "abbreviation": "CMU",
+      "cfbdTeamId": "2117",
+      "cfbdSchool": "Central Michigan",
+      "logoUrl": "/teams/team-central-michigan.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-central-michigan.png",
+        "apps/portal/public/teams/team-central-michigan.png"
+      ]
+    },
+    {
+      "teamId": "team-eastern-michigan",
+      "name": "Eastern Michigan",
+      "abbreviation": "EMU",
+      "cfbdTeamId": "2199",
+      "cfbdSchool": "Eastern Michigan",
+      "logoUrl": "/teams/team-eastern-michigan.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-eastern-michigan.png",
+        "apps/portal/public/teams/team-eastern-michigan.png"
+      ]
+    },
+    {
+      "teamId": "team-kent-state",
+      "name": "Kent State",
+      "abbreviation": "KENT",
+      "cfbdTeamId": "2309",
+      "cfbdSchool": "Kent State",
+      "logoUrl": "/teams/team-kent-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-kent-state.png",
+        "apps/portal/public/teams/team-kent-state.png"
+      ]
+    },
+    {
+      "teamId": "team-miami-oh",
+      "name": "Miami (OH)",
+      "abbreviation": "M-OH",
+      "cfbdTeamId": "193",
+      "cfbdSchool": "Miami (OH)",
+      "logoUrl": "/teams/team-miami-oh.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-miami-oh.png",
+        "apps/portal/public/teams/team-miami-oh.png"
+      ]
+    },
+    {
+      "teamId": "team-northern-illinois",
+      "name": "Northern Illinois",
+      "abbreviation": "NIU",
+      "cfbdTeamId": "2459",
+      "cfbdSchool": "Northern Illinois",
+      "logoUrl": "/teams/team-northern-illinois.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-northern-illinois.png",
+        "apps/portal/public/teams/team-northern-illinois.png"
+      ]
+    },
+    {
+      "teamId": "team-ohio",
+      "name": "Ohio",
+      "abbreviation": "OHIO",
+      "cfbdTeamId": "195",
+      "cfbdSchool": "Ohio",
+      "logoUrl": "/teams/team-ohio.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-ohio.png",
+        "apps/portal/public/teams/team-ohio.png"
+      ]
+    },
+    {
+      "teamId": "team-toledo",
+      "name": "Toledo",
+      "abbreviation": "TOL",
+      "cfbdTeamId": "2649",
+      "cfbdSchool": "Toledo",
+      "logoUrl": "/teams/team-toledo.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-toledo.png",
+        "apps/portal/public/teams/team-toledo.png"
+      ]
+    },
+    {
+      "teamId": "team-umass",
+      "name": "UMass",
+      "abbreviation": "UMASS",
+      "cfbdTeamId": "113",
+      "cfbdSchool": "UMass",
+      "logoUrl": "/teams/team-umass.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-umass.png",
+        "apps/portal/public/teams/team-umass.png"
+      ]
+    },
+    {
+      "teamId": "team-western-michigan",
+      "name": "Western Michigan",
+      "abbreviation": "WMU",
+      "cfbdTeamId": "2711",
+      "cfbdSchool": "Western Michigan",
+      "logoUrl": "/teams/team-western-michigan.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-western-michigan.png",
+        "apps/portal/public/teams/team-western-michigan.png"
+      ]
+    },
+    {
+      "teamId": "team-air-force",
+      "name": "Air Force",
+      "abbreviation": "AFA",
+      "cfbdTeamId": "2005",
+      "cfbdSchool": "Air Force",
+      "logoUrl": "/teams/team-air-force.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-air-force.png",
+        "apps/portal/public/teams/team-air-force.png"
+      ]
+    },
+    {
+      "teamId": "team-boise-state",
+      "name": "Boise State",
+      "abbreviation": "BSU",
+      "cfbdTeamId": "68",
+      "cfbdSchool": "Boise State",
+      "logoUrl": "/teams/team-boise-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-boise-state.png",
+        "apps/portal/public/teams/team-boise-state.png"
+      ]
+    },
+    {
+      "teamId": "team-colorado-state",
+      "name": "Colorado State",
+      "abbreviation": "CSU",
+      "cfbdTeamId": "36",
+      "cfbdSchool": "Colorado State",
+      "logoUrl": "/teams/team-colorado-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-colorado-state.png",
+        "apps/portal/public/teams/team-colorado-state.png"
+      ]
+    },
+    {
+      "teamId": "team-fresno-state",
+      "name": "Fresno State",
+      "abbreviation": "FRES",
+      "cfbdTeamId": "278",
+      "cfbdSchool": "Fresno State",
+      "logoUrl": "/teams/team-fresno-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-fresno-state.png",
+        "apps/portal/public/teams/team-fresno-state.png"
+      ]
+    },
+    {
+      "teamId": "team-hawaii",
+      "name": "Hawaii",
+      "abbreviation": "HAW",
+      "cfbdTeamId": "62",
+      "cfbdSchool": "Hawai'i",
+      "logoUrl": "/teams/team-hawaii.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-hawaii.png",
+        "apps/portal/public/teams/team-hawaii.png"
+      ]
+    },
+    {
+      "teamId": "team-nevada",
+      "name": "Nevada",
+      "abbreviation": "NEV",
+      "cfbdTeamId": "2440",
+      "cfbdSchool": "Nevada",
+      "logoUrl": "/teams/team-nevada.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-nevada.png",
+        "apps/portal/public/teams/team-nevada.png"
+      ]
+    },
+    {
+      "teamId": "team-new-mexico",
+      "name": "New Mexico",
+      "abbreviation": "UNM",
+      "cfbdTeamId": "167",
+      "cfbdSchool": "New Mexico",
+      "logoUrl": "/teams/team-new-mexico.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-new-mexico.png",
+        "apps/portal/public/teams/team-new-mexico.png"
+      ]
+    },
+    {
+      "teamId": "team-san-diego-state",
+      "name": "San Diego State",
+      "abbreviation": "SDSU",
+      "cfbdTeamId": "21",
+      "cfbdSchool": "San Diego State",
+      "logoUrl": "/teams/team-san-diego-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-san-diego-state.png",
+        "apps/portal/public/teams/team-san-diego-state.png"
+      ]
+    },
+    {
+      "teamId": "team-san-jose-state",
+      "name": "San Jose State",
+      "abbreviation": "SJSU",
+      "cfbdTeamId": "23",
+      "cfbdSchool": "San Jos� State",
+      "logoUrl": "/teams/team-san-jose-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-san-jose-state.png",
+        "apps/portal/public/teams/team-san-jose-state.png"
+      ]
+    },
+    {
+      "teamId": "team-unlv",
+      "name": "UNLV",
+      "abbreviation": "UNLV",
+      "cfbdTeamId": "2439",
+      "cfbdSchool": "UNLV",
+      "logoUrl": "/teams/team-unlv.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-unlv.png",
+        "apps/portal/public/teams/team-unlv.png"
+      ]
+    },
+    {
+      "teamId": "team-utah-state",
+      "name": "Utah State",
+      "abbreviation": "USU",
+      "cfbdTeamId": "328",
+      "cfbdSchool": "Utah State",
+      "logoUrl": "/teams/team-utah-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-utah-state.png",
+        "apps/portal/public/teams/team-utah-state.png"
+      ]
+    },
+    {
+      "teamId": "team-wyoming",
+      "name": "Wyoming",
+      "abbreviation": "WYO",
+      "cfbdTeamId": "2751",
+      "cfbdSchool": "Wyoming",
+      "logoUrl": "/teams/team-wyoming.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-wyoming.png",
+        "apps/portal/public/teams/team-wyoming.png"
+      ]
+    },
+    {
+      "teamId": "team-app-state",
+      "name": "App State",
+      "abbreviation": "APP",
+      "cfbdTeamId": "2026",
+      "cfbdSchool": "Appalachian State",
+      "logoUrl": "/teams/team-app-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-app-state.png",
+        "apps/portal/public/teams/team-app-state.png"
+      ]
+    },
+    {
+      "teamId": "team-arkansas-state",
+      "name": "Arkansas State",
+      "abbreviation": "ARST",
+      "cfbdTeamId": "2032",
+      "cfbdSchool": "Arkansas State",
+      "logoUrl": "/teams/team-arkansas-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-arkansas-state.png",
+        "apps/portal/public/teams/team-arkansas-state.png"
+      ]
+    },
+    {
+      "teamId": "team-coastal-carolina",
+      "name": "Coastal Carolina",
+      "abbreviation": "CCU",
+      "cfbdTeamId": "324",
+      "cfbdSchool": "Coastal Carolina",
+      "logoUrl": "/teams/team-coastal-carolina.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-coastal-carolina.png",
+        "apps/portal/public/teams/team-coastal-carolina.png"
+      ]
+    },
+    {
+      "teamId": "team-georgia-southern",
+      "name": "Georgia Southern",
+      "abbreviation": "GASO",
+      "cfbdTeamId": "290",
+      "cfbdSchool": "Georgia Southern",
+      "logoUrl": "/teams/team-georgia-southern.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-georgia-southern.png",
+        "apps/portal/public/teams/team-georgia-southern.png"
+      ]
+    },
+    {
+      "teamId": "team-georgia-state",
+      "name": "Georgia State",
+      "abbreviation": "GAST",
+      "cfbdTeamId": "2247",
+      "cfbdSchool": "Georgia State",
+      "logoUrl": "/teams/team-georgia-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-georgia-state.png",
+        "apps/portal/public/teams/team-georgia-state.png"
+      ]
+    },
+    {
+      "teamId": "team-james-madison",
+      "name": "James Madison",
+      "abbreviation": "JMU",
+      "cfbdTeamId": "256",
+      "cfbdSchool": "James Madison",
+      "logoUrl": "/teams/team-james-madison.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-james-madison.png",
+        "apps/portal/public/teams/team-james-madison.png"
+      ]
+    },
+    {
+      "teamId": "team-louisiana",
+      "name": "Louisiana",
+      "abbreviation": "UL",
+      "cfbdTeamId": "309",
+      "cfbdSchool": "Louisiana",
+      "logoUrl": "/teams/team-louisiana.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-louisiana.png",
+        "apps/portal/public/teams/team-louisiana.png"
+      ]
+    },
+    {
+      "teamId": "team-marshall",
+      "name": "Marshall",
+      "abbreviation": "MRSH",
+      "cfbdTeamId": "276",
+      "cfbdSchool": "Marshall",
+      "logoUrl": "/teams/team-marshall.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-marshall.png",
+        "apps/portal/public/teams/team-marshall.png"
+      ]
+    },
+    {
+      "teamId": "team-old-dominion",
+      "name": "Old Dominion",
+      "abbreviation": "ODU",
+      "cfbdTeamId": "295",
+      "cfbdSchool": "Old Dominion",
+      "logoUrl": "/teams/team-old-dominion.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-old-dominion.png",
+        "apps/portal/public/teams/team-old-dominion.png"
+      ]
+    },
+    {
+      "teamId": "team-south-alabama",
+      "name": "South Alabama",
+      "abbreviation": "USA",
+      "cfbdTeamId": "6",
+      "cfbdSchool": "South Alabama",
+      "logoUrl": "/teams/team-south-alabama.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-south-alabama.png",
+        "apps/portal/public/teams/team-south-alabama.png"
+      ]
+    },
+    {
+      "teamId": "team-southern-miss",
+      "name": "Southern Miss",
+      "abbreviation": "USM",
+      "cfbdTeamId": "2572",
+      "cfbdSchool": "Southern Mississippi",
+      "logoUrl": "/teams/team-southern-miss.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-southern-miss.png",
+        "apps/portal/public/teams/team-southern-miss.png"
+      ]
+    },
+    {
+      "teamId": "team-texas-state",
+      "name": "Texas State",
+      "abbreviation": "TXST",
+      "cfbdTeamId": "326",
+      "cfbdSchool": "Texas State",
+      "logoUrl": "/teams/team-texas-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-texas-state.png",
+        "apps/portal/public/teams/team-texas-state.png"
+      ]
+    },
+    {
+      "teamId": "team-troy",
+      "name": "Troy",
+      "abbreviation": "TROY",
+      "cfbdTeamId": "2653",
+      "cfbdSchool": "Troy",
+      "logoUrl": "/teams/team-troy.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-troy.png",
+        "apps/portal/public/teams/team-troy.png"
+      ]
+    },
+    {
+      "teamId": "team-ulm",
+      "name": "ULM",
+      "abbreviation": "ULM",
+      "cfbdTeamId": "2433",
+      "cfbdSchool": "Louisiana Monroe",
+      "logoUrl": "/teams/team-ulm.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-ulm.png",
+        "apps/portal/public/teams/team-ulm.png"
+      ]
+    },
+    {
+      "teamId": "team-notre-dame",
+      "name": "Notre Dame",
+      "abbreviation": "ND",
+      "cfbdTeamId": "87",
+      "cfbdSchool": "Notre Dame",
+      "logoUrl": "/teams/team-notre-dame.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-notre-dame.png",
+        "apps/portal/public/teams/team-notre-dame.png"
+      ]
+    },
+    {
+      "teamId": "team-oregon-state",
+      "name": "Oregon State",
+      "abbreviation": "ORST",
+      "cfbdTeamId": "204",
+      "cfbdSchool": "Oregon State",
+      "logoUrl": "/teams/team-oregon-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-oregon-state.png",
+        "apps/portal/public/teams/team-oregon-state.png"
+      ]
+    },
+    {
+      "teamId": "team-uconn",
+      "name": "UConn",
+      "abbreviation": "CONN",
+      "cfbdTeamId": "41",
+      "cfbdSchool": "Connecticut",
+      "logoUrl": "/teams/team-uconn.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-uconn.png",
+        "apps/portal/public/teams/team-uconn.png"
+      ]
+    },
+    {
+      "teamId": "team-washington-state",
+      "name": "Washington State",
+      "abbreviation": "WSU",
+      "cfbdTeamId": "265",
+      "cfbdSchool": "Washington State",
+      "logoUrl": "/teams/team-washington-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-washington-state.png",
+        "apps/portal/public/teams/team-washington-state.png"
+      ]
+    },
+    {
+      "teamId": "team-sacramento-state",
+      "name": "Sacramento State",
+      "abbreviation": "SAC",
+      "cfbdTeamId": "16",
+      "cfbdSchool": "Sacramento State",
+      "logoUrl": "/teams/team-sacramento-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-sacramento-state.png",
+        "apps/portal/public/teams/team-sacramento-state.png"
+      ]
+    },
+    {
+      "teamId": "team-tarleton-state",
+      "name": "Tarleton State",
+      "abbreviation": "TAR",
+      "cfbdTeamId": "2627",
+      "cfbdSchool": "Tarleton State",
+      "logoUrl": "/teams/team-tarleton-state.png",
+      "copiedTo": [
+        "apps/web/public/teams/team-tarleton-state.png",
+        "apps/portal/public/teams/team-tarleton-state.png"
+      ]
+    }
+  ],
+  "unmatched": []
+}

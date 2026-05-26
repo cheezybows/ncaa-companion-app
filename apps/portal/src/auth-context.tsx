@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { AuthSession } from '@ncaa/domain';
-import { clearSession, listDemoUsers, loadSession, saveSession } from '@ncaa/auth';
+import { clearSession, loadSession, saveSession } from '@ncaa/auth';
 import { fetchSession, signIn as apiSignIn } from './api';
 
 interface AuthContextValue {
@@ -38,7 +38,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         saveSession(hosted);
         setSession(hosted);
       } catch {
-        // Keep the last hosted session if the API is temporarily unavailable.
+        clearSession();
+        setSession(null);
       }
       setLoading(false);
     }
@@ -70,5 +71,3 @@ export function useAuth() {
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
 }
-
-export { listDemoUsers };

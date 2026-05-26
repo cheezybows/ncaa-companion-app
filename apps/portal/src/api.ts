@@ -13,12 +13,6 @@ import type {
   TeamClaim,
   TeamTenure,
 } from '@ncaa/domain';
-import {
-  PLACEHOLDER_DYNASTY,
-  PLACEHOLDER_PROGRESSION,
-  PLACEHOLDER_ROSTERS,
-  PLACEHOLDER_TEAMS,
-} from '@ncaa/domain';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8787';
 
@@ -31,6 +25,7 @@ export interface DynastyBundle {
   playerCatalog?: PlayerCatalogEntry[];
   postseasonResults?: PostseasonResult[];
   rankings?: RankingSnapshot[];
+  teamTenures?: TeamTenure[];
   syncBatches: SyncBatch[];
   importState: unknown;
 }
@@ -52,12 +47,8 @@ export async function signIn(userId: string, password: string): Promise<AuthSess
       method: 'POST',
       body: JSON.stringify({ userId, password }),
     });
-  } catch {
-    if (password !== 'password') throw new Error('Invalid demo password');
-    const { signInAsUserId } = await import('@ncaa/auth');
-    const session = signInAsUserId(userId);
-    if (!session) throw new Error('Sign in failed');
-    return session;
+  } catch (error) {
+    throw error instanceof Error ? error : new Error('Sign in failed');
   }
 }
 
@@ -70,12 +61,27 @@ export async function fetchDynastyBundle(dynastyId: string) {
 }
 
 export function fallbackDynastyBundle(): DynastyBundle {
+  const now = new Date().toISOString();
+  const currentSeasonYear = new Date().getFullYear();
   return {
-    dynasty: PLACEHOLDER_DYNASTY,
-    teams: PLACEHOLDER_TEAMS,
-    rosters: PLACEHOLDER_ROSTERS,
-    progression: PLACEHOLDER_PROGRESSION,
-    rankings: PLACEHOLDER_DYNASTY.rankings ?? [],
+    dynasty: {
+      id: 'dynasty-unpublished',
+      name: 'No dynasty published',
+      currentSeasonYear,
+      seasons: [],
+      rankings: [],
+      recruitingClasses: [],
+      teamRosterSnapshots: [],
+      checkpoints: [],
+      playerCatalog: [],
+      postseasonResults: [],
+      createdAt: now,
+      updatedAt: now,
+    },
+    teams: [],
+    rosters: {},
+    progression: [],
+    rankings: [],
     syncBatches: [],
     importState: null,
   };
@@ -85,8 +91,7 @@ export async function fetchClaims(dynastyId: string): Promise<TeamClaim[]> {
   try {
     return await request<TeamClaim[]>(`/dynasties/${dynastyId}/claims`);
   } catch {
-    const { DEMO_CLAIMS } = await import('@ncaa/domain');
-    return DEMO_CLAIMS;
+    return [];
   }
 }
 
@@ -95,8 +100,7 @@ export async function fetchAvailableTeams(dynastyId: string): Promise<string[]> 
     const data = await request<{ teamIds: string[] }>(`/dynasties/${dynastyId}/available-teams`);
     return data.teamIds;
   } catch {
-    const { getAvailableTeamsForClaim } = await import('@ncaa/domain');
-    return getAvailableTeamsForClaim(dynastyId);
+    return [];
   }
 }
 
@@ -107,13 +111,7 @@ export async function fetchAssignableTeams(dynastyId: string, userId: string): P
     );
     return data.teamIds;
   } catch {
-    const { DEMO_HOSTED_DYNASTY, DEMO_TENURES } = await import('@ncaa/domain');
-    const occupiedByOthers = new Set(
-      DEMO_TENURES.filter((tenure) => tenure.status === 'active' && tenure.userId !== userId).map(
-        (tenure) => tenure.teamId
-      )
-    );
-    return DEMO_HOSTED_DYNASTY.teamIds.filter((teamId) => !occupiedByOthers.has(teamId));
+    return [];
   }
 }
 
@@ -147,8 +145,7 @@ export async function fetchTenures(userId: string, dynastyId: string): Promise<T
   try {
     return await request<TeamTenure[]>(`/users/${userId}/tenures?dynastyId=${dynastyId}`);
   } catch {
-    const { getTenuresForUser } = await import('@ncaa/domain');
-    return getTenuresForUser(userId, dynastyId);
+    return [];
   }
 }
 
@@ -156,8 +153,7 @@ export async function fetchUsers(): Promise<AppUser[]> {
   try {
     return await request<AppUser[]>('/users');
   } catch {
-    const { DEMO_USERS } = await import('@ncaa/domain');
-    return DEMO_USERS;
+    return [];
   }
 }
 

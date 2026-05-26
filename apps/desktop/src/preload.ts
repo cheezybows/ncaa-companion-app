@@ -19,6 +19,7 @@ const api: NcaaApi = {
   clearAllImports: (input) => ipcRenderer.invoke('capture:clear-all-imports', input),
   undoLatestRosterImport: (input) => ipcRenderer.invoke('capture:undo-latest-roster-import', input),
   undoLatestScheduleImport: (input) => ipcRenderer.invoke('capture:undo-latest-schedule-import', input),
+  undoLatestTop25Import: () => ipcRenderer.invoke('capture:undo-latest-top25-import'),
   getCommissionerConfig: () => ipcRenderer.invoke('commissioner:get-config'),
   listUsers: () => ipcRenderer.invoke('commissioner:list-users'),
   listTeams: () => ipcRenderer.invoke('commissioner:list-teams'),
@@ -26,6 +27,7 @@ const api: NcaaApi = {
     ipcRenderer.invoke('commissioner:update-team-conference', input),
   seedDemoUsers: () => ipcRenderer.invoke('commissioner:seed-demo-users'),
   saveUser: (input) => ipcRenderer.invoke('commissioner:save-user', input),
+  deleteUser: (userId) => ipcRenderer.invoke('commissioner:delete-user', userId),
   listCoaches: () => ipcRenderer.invoke('commissioner:list-coaches'),
   refreshHostedUsers: () => ipcRenderer.invoke('commissioner:refresh-users'),
   listCommissionerTenures: (dynastyId) =>
@@ -35,12 +37,13 @@ const api: NcaaApi = {
   assignCoachTeam: (input) => ipcRenderer.invoke('commissioner:assign-team', input),
   listRosterImports: (dynastyId) => ipcRenderer.invoke('commissioner:list-imports', dynastyId),
   publishToHosted: () => ipcRenderer.invoke('commissioner:publish'),
+  installDemoMode: () => ipcRenderer.invoke('commissioner:install-demo-mode'),
   listPublishHistory: (dynastyId) =>
     ipcRenderer.invoke('commissioner:publish-history', dynastyId),
   previewSeasonAdvance: (assignments) =>
     ipcRenderer.invoke('commissioner:preview-season-advance', assignments),
-  advanceToNextSeason: (assignments) =>
-    ipcRenderer.invoke('commissioner:advance-season', assignments),
+  advanceToNextSeason: (assignments, heisman) =>
+    ipcRenderer.invoke('commissioner:advance-season', assignments, heisman),
   previewWeekAdvance: () => ipcRenderer.invoke('commissioner:preview-week-advance'),
   advanceToNextWeek: () => ipcRenderer.invoke('commissioner:advance-week'),
   getDynastyArchiveSummary: () => ipcRenderer.invoke('commissioner:get-archive-summary'),

@@ -114,6 +114,28 @@ export function CommissionerAdminPage({
     }
   }
 
+  async function handleInstallDemoMode() {
+    if (!api.installDemoMode) {
+      setMessage('Demo mode install is available in the Electron desktop app.');
+      return;
+    }
+
+    setBusy(true);
+    setMessage(null);
+    try {
+      const result = await api.installDemoMode();
+      await refresh();
+      await onLeagueChanged?.();
+      setMessage(
+        `Demo mode installed "${result.leagueName}" with ${result.userCount} users and ${result.tenureCount} team assignments. Published batch ${result.batchId}.`
+      );
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!api.listLeagues || !api.createLeague || !api.switchActiveLeague || !api.deleteLeague) {
     return (
       <section className="panel">
@@ -211,6 +233,22 @@ export function CommissionerAdminPage({
             {busy ? 'Creating...' : 'Create & Switch'}
           </button>
         </div>
+      </div>
+
+      <div className="panel">
+        <h3>Demo Mode</h3>
+        <p className="muted">
+          Install the Iowa capture demo bundle, switch to it locally, and publish it to the hosted
+          portal for demo sign-ins.
+        </p>
+        <div className="import-action-row">
+          <button onClick={() => void handleInstallDemoMode()} disabled={busy || !api.installDemoMode}>
+            {busy ? 'Installing...' : 'Install Demo Mode'}
+          </button>
+        </div>
+        <p className="muted small testing-tools">
+          Demo coaches use the default hosted password until changed.
+        </p>
       </div>
 
       <div className="panel full">

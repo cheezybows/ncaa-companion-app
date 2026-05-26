@@ -55,6 +55,7 @@ Screenshot/OCR capture is deferred until local file readability is evaluated. Se
 Repo-local skills:
 
 - `ncaa-app-functionality` — app functionality, architecture, commissioner workflow, league management, storage, sync payloads, IPC, hosted portal, publish flow
+- `ncaa-demo-json-builder` — demo dynasty JSON bundles, fake coach users, team tenures, roster/schedule/ranking progression, player archive simulation
 - `ncaa-frontend-theming` — frontend, styling, CSS, theme, layout, React UI, commissioner UI, portal UI, app shell
 - `ncaa-ocr-imports` — OCR, Tesseract, screenshot import, roster OCR, schedule OCR, Top 25 OCR, capture imports, image parsing
 

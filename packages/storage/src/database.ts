@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS commissioner_dynasty_state (
   archived_rankings_json TEXT NOT NULL DEFAULT '[]',
   team_roster_snapshots_json TEXT NOT NULL DEFAULT '[]',
   checkpoints_json TEXT NOT NULL DEFAULT '[]',
+  progression_json TEXT NOT NULL DEFAULT '[]',
   player_catalog_json TEXT NOT NULL DEFAULT '[]',
   postseason_results_json TEXT NOT NULL DEFAULT '[]',
   schedule_imports_json TEXT NOT NULL DEFAULT '[]',
@@ -139,6 +140,7 @@ export function openDatabase(dbPath: string): Database.Database {
   ensureColumn(db, 'commissioner_users', 'password_reset_required', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'commissioner_users', 'temporary_password', 'TEXT');
   ensureColumn(db, 'commissioner_dynasty_state', 'checkpoints_json', "TEXT NOT NULL DEFAULT '[]'");
+  ensureColumn(db, 'commissioner_dynasty_state', 'progression_json', "TEXT NOT NULL DEFAULT '[]'");
   ensureColumn(db, 'commissioner_dynasty_state', 'player_catalog_json', "TEXT NOT NULL DEFAULT '[]'");
   ensureColumn(db, 'commissioner_dynasty_state', 'postseason_results_json', "TEXT NOT NULL DEFAULT '[]'");
   return db;

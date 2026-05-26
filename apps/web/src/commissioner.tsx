@@ -1,35 +1,28 @@
 import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import {
   PLACEHOLDER_CONFERENCES,
-  PLACEHOLDER_DYNASTY,
-  PLACEHOLDER_ROSTERS,
   PLACEHOLDER_TEAMS,
 } from '@ncaa/domain';
 import type {
   AppUser,
   DynastyArchiveSummary,
   PostseasonResult,
-  RankingEntry,
   Roster,
   ScheduleGame,
+  Season,
   SeasonAdvanceAction,
   SeasonAdvanceAssignmentInput,
+  SeasonAdvanceHeismanInput,
   SeasonAdvancePreview,
   Team,
   TeamTenure,
   WeekAdvancePreview,
 } from '@ncaa/domain';
+import { TeamMark } from '@ncaa/ui';
 import { getCompanionApi } from './api';
 import type { CommissionerConfig, PublishResult, RosterImportRecord } from './api';
 
 const api = getCompanionApi();
-
-type Top25DraftRow = {
-  rank: number;
-  teamId: string;
-  wins: number;
-  losses: number;
-};
 
 type ScheduleDraftRow = {
   id: string;
@@ -85,10 +78,16 @@ type BowlWinDraftRow = {
   teamId: string;
 };
 
+type CatalogExitFilter = 'all' | 'active' | 'graduated' | 'transferred' | 'unknown';
+
+const CATALOG_TABLE_LIMIT = 25;
+
 export function CommissionerOverviewPage() {
   const [config, setConfig] = useState<CommissionerConfig | null>(null);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [tenures, setTenures] = useState<TeamTenure[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [archiveSummary, setArchiveSummary] = useState<DynastyArchiveSummary | null>(null);
   const [imports, setImports] = useState<RosterImportRecord[]>([]);
   const [scheduleImports, setScheduleImports] = useState<
     Awaited<ReturnType<NonNullable<typeof api.listScheduleImports>>>
@@ -105,9 +104,20 @@ export function CommissionerOverviewPage() {
       if (!api.getCommissionerConfig) return;
       const nextConfig = await api.getCommissionerConfig();
       setConfig(nextConfig);
-      const [nextUsers, nextTenures, nextImports, nextScheduleImports, nextTop25Imports, history] = await Promise.all([
+      const [
+        nextUsers,
+        nextTenures,
+        nextTeams,
+        nextArchiveSummary,
+        nextImports,
+        nextScheduleImports,
+        nextTop25Imports,
+        history,
+      ] = await Promise.all([
         api.listUsers?.() ?? [],
         api.listCommissionerTenures?.(nextConfig.dynastyId) ?? [],
+        api.listTeams?.() ?? [],
+        api.getDynastyArchiveSummary?.() ?? null,
         api.listRosterImports?.(nextConfig.dynastyId) ?? [],
         api.listScheduleImports?.() ?? [],
         api.listTop25Imports?.() ?? [],
@@ -115,6 +125,8 @@ export function CommissionerOverviewPage() {
       ]);
       setUsers(nextUsers);
       setTenures(nextTenures);
+      setTeams(nextTeams);
+      setArchiveSummary(nextArchiveSummary);
       setImports(nextImports);
       setScheduleImports(nextScheduleImports);
       setTop25Imports(nextTop25Imports);
@@ -126,23 +138,34 @@ export function CommissionerOverviewPage() {
   const activeUserCards = useMemo(() => {
     const userById = new Map(users.map((user) => [user.id, user]));
     const placeholderTeamById = new Map(PLACEHOLDER_TEAMS.map((team) => [team.id, team]));
+    const teamById = new Map([...PLACEHOLDER_TEAMS, ...teams].map((team) => [team.id, team]));
     const importedTeamById = new Map(imports.map((item) => [item.teamId, item.team]));
     const conferenceById = new Map(PLACEHOLDER_CONFERENCES.map((conference) => [conference.id, conference]));
+    const currentSeasonYear = archiveSummary?.currentSeasonYear;
+    const currentCheckpoint = [...(archiveSummary?.checkpoints ?? [])]
+      .filter((checkpoint) => checkpoint.seasonYear === currentSeasonYear && checkpoint.scheduleSnapshot)
+      .sort((a, b) => b.week - a.week || b.capturedAt.localeCompare(a.capturedAt))[0];
+    const currentSeason =
+      currentCheckpoint?.scheduleSnapshot ??
+      archiveSummary?.archivedSeasons.find((season) => season.year === currentSeasonYear);
 
     return tenures
       .filter((tenure) => tenure.status === 'active')
       .map((tenure) => {
         const user = userById.get(tenure.userId);
-        const team = importedTeamById.get(tenure.teamId) ?? placeholderTeamById.get(tenure.teamId);
+        const team = importedTeamById.get(tenure.teamId) ?? teamById.get(tenure.teamId) ?? placeholderTeamById.get(tenure.teamId);
         const importedSchedule = scheduleImports.find((item) =>
           item.season.standings.some((standing) => standing.teamId === tenure.teamId)
         );
-        const standing = importedSchedule?.season.standings.find((row) => row.teamId === tenure.teamId);
+        const standing =
+          currentSeason?.standings.find((row) => row.teamId === tenure.teamId) ??
+          importedSchedule?.season.standings.find((row) => row.teamId === tenure.teamId);
 
         return {
           id: tenure.id,
           coachName: user?.displayName ?? tenure.userId,
           coachEmail: user?.email ?? '',
+          team,
           teamName: team?.name ?? tenure.teamId,
           teamAbbreviation: team?.abbreviation ?? tenure.teamId,
           teamOverall: team?.overallRating,
@@ -158,59 +181,133 @@ export function CommissionerOverviewPage() {
         };
       })
       .sort((a, b) => a.coachName.localeCompare(b.coachName));
-  }, [imports, scheduleImports, tenures, users]);
+  }, [archiveSummary, imports, scheduleImports, teams, tenures, users]);
 
   const seasonOverview = useMemo(() => {
-    const importedCurrentSeason = [...scheduleImports].sort((a, b) => b.season.year - a.season.year)[0]?.season;
-    const fallbackCurrentSeason =
-      PLACEHOLDER_DYNASTY.seasons.find((season) => season.year === PLACEHOLDER_DYNASTY.currentSeasonYear) ??
-      PLACEHOLDER_DYNASTY.seasons[0];
-    const currentSeason = importedCurrentSeason ?? fallbackCurrentSeason;
-    const teamById = new Map(PLACEHOLDER_TEAMS.map((team) => [team.id, team]));
+    const archivedSeasons = archiveSummary?.archivedSeasons ?? [];
+    const importedSeasons = scheduleImports.map((item) => item.season);
+    const importedCurrentSeason = [...importedSeasons].sort((a, b) => b.year - a.year)[0];
+    const currentSeasonYear =
+      archiveSummary?.currentSeasonYear ??
+      importedCurrentSeason?.year ??
+      config?.startingSeasonYear ??
+      new Date().getFullYear();
+    const currentCheckpoint = [...(archiveSummary?.checkpoints ?? [])]
+      .filter((checkpoint) => checkpoint.seasonYear === currentSeasonYear && checkpoint.scheduleSnapshot)
+      .sort((a, b) => b.week - a.week || b.capturedAt.localeCompare(a.capturedAt))[0];
+    const currentCheckpointSeason: Season | undefined = currentCheckpoint?.scheduleSnapshot
+      ? {
+          id: `checkpoint-season-${currentCheckpoint.scheduleSnapshot.seasonYear}`,
+          dynastyId: config?.dynastyId ?? '',
+          year: currentCheckpoint.scheduleSnapshot.seasonYear,
+          label: `${currentCheckpoint.scheduleSnapshot.seasonYear} Week ${currentCheckpoint.week}`,
+          schedule: currentCheckpoint.scheduleSnapshot.schedule,
+          standings: currentCheckpoint.scheduleSnapshot.standings,
+        }
+      : undefined;
+    const seasonsByYear = new Map<number, Season>();
+    for (const season of archivedSeasons) seasonsByYear.set(season.year, season);
+    for (const season of importedSeasons) {
+      if (!seasonsByYear.has(season.year)) seasonsByYear.set(season.year, season);
+    }
+    if (currentCheckpointSeason) seasonsByYear.set(currentCheckpointSeason.year, currentCheckpointSeason);
+    const allSeasons = [...seasonsByYear.values()];
+    const currentSeason =
+      allSeasons.find((season) => season.year === currentSeasonYear) ?? importedCurrentSeason;
+    const teamById = new Map([...PLACEHOLDER_TEAMS, ...teams].map((team) => [team.id, team]));
     const userById = new Map(users.map((user) => [user.id, user]));
-    const coachForTeamSeason = (teamId: string, seasonYear: number) => {
-      const tenure = tenures.find(
-        (item) =>
-          item.teamId === teamId &&
-          item.startSeasonYear <= seasonYear &&
-          (item.endSeasonYear === undefined || item.endSeasonYear >= seasonYear)
+    const checkpointTop25 = [...(archiveSummary?.checkpoints ?? [])]
+      .filter((checkpoint) => checkpoint.seasonYear === currentSeasonYear && checkpoint.rankingSnapshot)
+      .sort((a, b) => {
+        const weekDiff = b.week - a.week;
+        if (weekDiff !== 0) return weekDiff;
+        return b.capturedAt.localeCompare(a.capturedAt);
+      })[0]?.rankingSnapshot;
+    const importedTop25 = [...top25Imports]
+      .filter((item) => item.rankings.seasonYear === currentSeasonYear)
+      .sort((a, b) => b.rankings.capturedAt.localeCompare(a.rankings.capturedAt))[0]?.rankings;
+    const latestTop25 = checkpointTop25 ?? importedTop25;
+    const recordForTeam = (teamId: string) => {
+      const scheduleGames = currentSeason?.schedule.filter(
+        (game) =>
+          !game.isBye &&
+          game.week < 15 &&
+          (game.homeTeamId === teamId || game.awayTeamId === teamId) &&
+          game.isPlayed &&
+          game.homeScore !== undefined &&
+          game.awayScore !== undefined
       );
-      if (!tenure) return null;
-      return {
-        id: tenure.userId,
-        name: userById.get(tenure.userId)?.displayName ?? tenure.userId,
-      };
+      if (!scheduleGames || scheduleGames.length === 0) return null;
+      return scheduleGames.reduce(
+        (record, game) => {
+          const isHome = game.homeTeamId === teamId;
+          const teamScore = isHome ? game.homeScore ?? 0 : game.awayScore ?? 0;
+          const opponentScore = isHome ? game.awayScore ?? 0 : game.homeScore ?? 0;
+          if (teamScore > opponentScore) record.wins += 1;
+          if (teamScore < opponentScore) record.losses += 1;
+          return record;
+        },
+        { wins: 0, losses: 0 }
+      );
     };
-    const latestTop25 = [...top25Imports]
-      .sort((a, b) => b.rankings.capturedAt.localeCompare(a.rankings.capturedAt))[0];
     const rankedTeams = latestTop25
-      ? latestTop25.rankings.entries.slice(0, 3).map((entry) => ({
-          rank: entry.rank,
-          teamName: teamById.get(entry.teamId)?.name ?? entry.teamName,
-          record: `${entry.wins}-${entry.losses}`,
-        }))
+      ? latestTop25.entries.slice(0, 3).map((entry) => {
+          const record = recordForTeam(entry.teamId);
+          const team = teamById.get(entry.teamId);
+          return {
+            rank: entry.rank,
+            teamId: entry.teamId,
+            team,
+            teamName: team?.name ?? entry.teamName,
+            record: record ? `${record.wins}-${record.losses}` : `${entry.wins}-${entry.losses}`,
+          };
+      })
       : [];
-    const allSeasons = [
-      ...PLACEHOLDER_DYNASTY.seasons,
-      ...scheduleImports.map((item) => item.season),
-    ];
     const previousSeason = allSeasons
-      .filter((season) => season.year < (currentSeason?.year ?? PLACEHOLDER_DYNASTY.currentSeasonYear))
+      .filter((season) => season.year < currentSeasonYear)
       .sort((a, b) => b.year - a.year)[0];
-    const pastChampionStanding = previousSeason?.standings.find((standing) => standing.ranking === 1);
     const pastChampion =
-      pastChampionStanding && previousSeason
-        ? coachForTeamSeason(pastChampionStanding.teamId, previousSeason.year)?.name ?? 'Unassigned'
+      previousSeason?.nationalChampionTeamId
+        ? teamById.get(previousSeason.nationalChampionTeamId)?.name ?? previousSeason.nationalChampionTeamId
         : 'Not tracked yet';
+    const teamSeasonRecord = (season: Season, teamId: string) => {
+      const playedGames = season.schedule.filter(
+        (game) =>
+          !game.isBye &&
+          game.week < 15 &&
+          (game.homeTeamId === teamId || game.awayTeamId === teamId) &&
+          game.isPlayed &&
+          game.homeScore !== undefined &&
+          game.awayScore !== undefined
+      );
+      if (playedGames.length === 0) {
+        const standing = season.standings.find((item) => item.teamId === teamId);
+        return standing ? { wins: standing.wins, losses: standing.losses } : null;
+      }
+      return playedGames.reduce(
+        (record, game) => {
+          const isHome = game.homeTeamId === teamId;
+          const teamScore = isHome ? game.homeScore ?? 0 : game.awayScore ?? 0;
+          const opponentScore = isHome ? game.awayScore ?? 0 : game.homeScore ?? 0;
+          if (teamScore > opponentScore) record.wins += 1;
+          if (teamScore < opponentScore) record.losses += 1;
+          return record;
+        },
+        { wins: 0, losses: 0 }
+      );
+    };
     const recordsByUser = new Map<string, { coachName: string; wins: number; losses: number }>();
-    for (const season of allSeasons) {
-      for (const standing of season.standings) {
-        const coach = coachForTeamSeason(standing.teamId, season.year);
-        if (!coach) continue;
-        const record = recordsByUser.get(coach.id) ?? { coachName: coach.name, wins: 0, losses: 0 };
-        record.wins += standing.wins;
-        record.losses += standing.losses;
-        recordsByUser.set(coach.id, record);
+    for (const tenure of tenures) {
+      for (const season of allSeasons) {
+        if (season.year < tenure.startSeasonYear) continue;
+        if (tenure.endSeasonYear !== undefined && season.year > tenure.endSeasonYear) continue;
+        const seasonRecord = teamSeasonRecord(season, tenure.teamId);
+        if (!seasonRecord) continue;
+        const coachName = userById.get(tenure.userId)?.displayName ?? tenure.userId;
+        const record = recordsByUser.get(tenure.userId) ?? { coachName, wins: 0, losses: 0 };
+        record.wins += seasonRecord.wins;
+        record.losses += seasonRecord.losses;
+        recordsByUser.set(tenure.userId, record);
       }
     }
     const bestRecord = [...recordsByUser.values()]
@@ -221,12 +318,12 @@ export function CommissionerOverviewPage() {
       }))[0];
 
     return {
-      seasonYear: currentSeason?.year ?? PLACEHOLDER_DYNASTY.currentSeasonYear,
+      seasonYear: currentSeasonYear,
       topRankedTeams: rankedTeams,
       pastChampion,
       bestRecord,
     };
-  }, [scheduleImports, tenures, top25Imports, users]);
+  }, [archiveSummary, config, scheduleImports, teams, tenures, top25Imports, users]);
 
   if (!api.getCommissionerConfig) {
     return (
@@ -238,7 +335,12 @@ export function CommissionerOverviewPage() {
   }
 
   return (
-    <section className="grid two">
+    <section className="grid two users-page">
+      <article className="panel full active-league-panel">
+        <span>Active League</span>
+        <strong>{config?.leagueName ?? 'Loading league...'}</strong>
+      </article>
+
       <article className="panel full season-overview-card">
         <div>
           <p className="eyebrow">Current Season</p>
@@ -266,7 +368,10 @@ export function CommissionerOverviewPage() {
             <ol>
               {seasonOverview.topRankedTeams.map((team, index) => (
                 <li key={team.teamName} className={`rank-${index + 1}`}>
-                  <strong>#{team.rank} {team.teamName}</strong>
+                  <strong>
+                    #{team.rank}{' '}
+                    <TeamNameWithMark team={team.team} teamId={team.teamId} name={team.teamName} />
+                  </strong>
                   <em>{team.record}</em>
                 </li>
               ))}
@@ -293,7 +398,13 @@ export function CommissionerOverviewPage() {
                     <span>{card.coachEmail || 'Coach'}</span>
                     <strong>{card.coachName}</strong>
                   </div>
-                  <em>{card.teamAbbreviation}</em>
+                  <TeamMark
+                    team={card.team}
+                    teamId={card.team?.id}
+                    name={card.teamName}
+                    abbreviation={card.teamAbbreviation}
+                    size="md"
+                  />
                 </div>
                 <div className="active-team-name">{card.teamName}</div>
                 <div className="active-rating-strip">
@@ -392,6 +503,7 @@ export function CommissionerUsersPage() {
   const [passwordResetRequired, setPasswordResetRequired] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pendingDeleteUserId, setPendingDeleteUserId] = useState('');
 
   async function refresh() {
     const nextUsers = (await api.listUsers?.()) ?? [];
@@ -403,6 +515,16 @@ export function CommissionerUsersPage() {
   }, []);
 
   const selectedUser = users.find((user) => user.id === selectedUserId);
+
+  function resetForm() {
+    setSelectedUserId('');
+    setDisplayName('');
+    setEmail('');
+    setRole('coach');
+    setAccessStatus('active');
+    setTemporaryPassword('');
+    setPasswordResetRequired(false);
+  }
 
   useEffect(() => {
     if (!selectedUser) return;
@@ -434,7 +556,29 @@ export function CommissionerUsersPage() {
       });
       setMessage(`${selectedUserId ? 'Updated' : 'Added'} ${saved.displayName}.`);
       setSelectedUserId(saved.id);
+      setPendingDeleteUserId('');
       await refresh();
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteUser(user: AppUser) {
+    if (!api.deleteUser) {
+      setMessage('User deletion is available in the Electron desktop app.');
+      return;
+    }
+
+    setBusy(true);
+    setMessage(null);
+    try {
+      await api.deleteUser(user.id);
+      if (selectedUserId === user.id) resetForm();
+      setPendingDeleteUserId('');
+      await refresh();
+      setMessage(`Removed ${user.displayName} and all of their team assignments.`);
     } catch (error) {
       setMessage(String(error));
     } finally {
@@ -463,12 +607,18 @@ export function CommissionerUsersPage() {
         {message && <div className="notice">{message}</div>}
       </div>
 
-      <div className="panel">
+      <div className="panel users-editor-panel">
         <h3>{selectedUserId ? 'Edit User' : 'Add User'}</h3>
         <div className="form-grid">
           <label className="stacked-field">
             <span>Existing User</span>
-            <select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}>
+            <select
+              value={selectedUserId}
+              onChange={(event) => {
+                if (event.target.value) setSelectedUserId(event.target.value);
+                else resetForm();
+              }}
+            >
               <option value="">Create new user</option>
               {users.map((user) => (
                 <option key={user.id} value={user.id}>
@@ -528,19 +678,85 @@ export function CommissionerUsersPage() {
         </div>
       </div>
 
-      <div className="panel">
+      <div className="panel full users-list-panel">
         <h3>Current Users</h3>
-        <DataTable
-          headers={['Name', 'Email', 'Role', 'Access', 'Password']}
-          rows={users.map((user) => [
-            user.displayName,
-            user.email,
-            user.role,
-            user.accessStatus ?? 'active',
-            user.passwordResetRequired ? 'Reset required' : user.passwordUpdatedAt ? 'Set' : 'Not set',
-          ])}
-          empty="No users added yet."
-        />
+        {users.length === 0 ? (
+          <p className="muted">No users added yet.</p>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Access</th>
+                  <th>Password</th>
+                  <th className="users-actions-heading">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((user) => {
+                  const confirmDelete = pendingDeleteUserId === user.id;
+                  return (
+                    <tr key={user.id}>
+                      <td>{user.displayName}</td>
+                      <td>{user.email}</td>
+                      <td>{user.role}</td>
+                      <td>{user.accessStatus ?? 'active'}</td>
+                      <td>
+                        {user.passwordResetRequired
+                          ? 'Reset required'
+                          : user.passwordUpdatedAt
+                            ? 'Set'
+                            : 'Not set'}
+                      </td>
+                      <td className="compact-actions users-actions-cell">
+                        <button
+                          className="secondary"
+                          disabled={busy}
+                          onClick={() => setSelectedUserId(user.id)}
+                        >
+                          Edit
+                        </button>
+                        {confirmDelete ? (
+                          <>
+                            <button
+                              className="danger"
+                              disabled={busy || !api.deleteUser}
+                              onClick={() => void deleteUser(user)}
+                            >
+                              Confirm delete
+                            </button>
+                            <button
+                              className="secondary"
+                              disabled={busy}
+                              onClick={() => setPendingDeleteUserId('')}
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            className="danger secondary"
+                            disabled={busy || !api.deleteUser}
+                            onClick={() => setPendingDeleteUserId(user.id)}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="muted small">
+          Delete permanently removes the user and all team assignments. Use disabled access when you only
+          want to block portal sign-in.
+        </p>
       </div>
     </section>
   );
@@ -552,7 +768,6 @@ export function CommissionerAssignmentsPage() {
   const [selectedUserId, setSelectedUserId] = useState('');
   const [assignableTeamIds, setAssignableTeamIds] = useState<string[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState('');
-  const [teamSearch, setTeamSearch] = useState('');
   const [teams, setTeams] = useState<Team[]>(PLACEHOLDER_TEAMS);
   const [tenures, setTenures] = useState<TeamTenure[]>([]);
   const [message, setMessage] = useState<string | null>(null);
@@ -592,44 +807,26 @@ export function CommissionerAssignmentsPage() {
     })();
   }, [config, selectedUserId]);
 
-  const teamById = useMemo(
-    () => new Map(teams.map((team) => [team.id, team])),
-    [teams]
-  );
   const teamNameById = useMemo(
     () => new Map(teams.map((team) => [team.id, team.name])),
     [teams]
   );
-  const sortedAssignableTeamIds = useMemo(
+  const assignableTeams = useMemo(
     () =>
       [...assignableTeamIds].sort((a, b) =>
         (teamNameById.get(a) ?? a).localeCompare(teamNameById.get(b) ?? b)
-      ),
-    [assignableTeamIds, teamNameById]
+      )
+        .map((teamId) => teams.find((team) => team.id === teamId))
+        .filter((team): team is Team => Boolean(team)),
+    [assignableTeamIds, teamNameById, teams]
   );
-  const visibleAssignableTeamIds = useMemo(() => {
-    const query = teamSearch.trim().toLowerCase();
-    if (!query) return sortedAssignableTeamIds;
-    return sortedAssignableTeamIds.filter((teamId) => {
-      const team = teamById.get(teamId);
-      return (
-        teamId.toLowerCase().includes(query) ||
-        team?.name.toLowerCase().includes(query) ||
-        team?.abbreviation.toLowerCase().includes(query) ||
-        team?.conferenceId?.toLowerCase().includes(query)
-      );
-    });
-  }, [sortedAssignableTeamIds, teamById, teamSearch]);
 
   useEffect(() => {
-    if (visibleAssignableTeamIds.length === 0) {
+    const availableTeamIds = assignableTeams.map((team) => team.id);
+    if (selectedTeamId && !availableTeamIds.includes(selectedTeamId)) {
       setSelectedTeamId('');
-      return;
     }
-    if (!visibleAssignableTeamIds.includes(selectedTeamId)) {
-      setSelectedTeamId(visibleAssignableTeamIds[0] ?? '');
-    }
-  }, [selectedTeamId, visibleAssignableTeamIds]);
+  }, [assignableTeams, selectedTeamId]);
 
   async function assignTeam() {
     if (!config || !selectedUserId || !selectedTeamId || !api.assignCoachTeam) return;
@@ -677,7 +874,9 @@ export function CommissionerAssignmentsPage() {
       <div className="section-header">
         <div>
           <h3>Assign Teams</h3>
-          <p className="muted">One active team per coach. Prior tenures are archived on change.</p>
+          <p className="muted">
+            One active team per coach or commissioner. Prior tenures are archived on change.
+          </p>
         </div>
         <div className="button-row">
           <button className="secondary" onClick={() => setShowConferenceEditor(true)}>
@@ -689,7 +888,7 @@ export function CommissionerAssignmentsPage() {
             </summary>
             <div className="overflow-menu-content">
               <button type="button" onClick={() => void api.refreshHostedUsers?.()}>
-                Refresh coaches
+                Refresh users
               </button>
             </div>
           </details>
@@ -698,40 +897,30 @@ export function CommissionerAssignmentsPage() {
       {message && <div className="notice">{message}</div>}
       <div className="assignment-form-card">
         <label className="stacked-field">
-          <span>Coach</span>
+          <span>Coach / Commissioner</span>
           <select value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)}>
             {coaches.map((coach) => (
               <option key={coach.id} value={coach.id}>
-                {coach.displayName}
+                {coach.displayName} ({coach.role})
               </option>
             ))}
           </select>
         </label>
 
-        <div className="team-picker">
-          <label className="stacked-field">
-            <span>Find Team</span>
-            <input
-              placeholder="Search by name, abbreviation, or conference..."
-              value={teamSearch}
-              onChange={(e) => setTeamSearch(e.target.value)}
-            />
-          </label>
-          <label className="stacked-field">
-            <span>Team</span>
-            <select value={selectedTeamId} onChange={(e) => setSelectedTeamId(e.target.value)}>
-              {visibleAssignableTeamIds.map((teamId) => (
-                <option key={teamId} value={teamId}>
-                  {teamNameById.get(teamId) ?? teamId}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+        <label className="stacked-field">
+          <span>Team</span>
+          <SearchableTeamSelect
+            id="assignment-team"
+            teams={assignableTeams}
+            value={selectedTeamId}
+            onChange={setSelectedTeamId}
+            placeholder="Search by name, abbreviation, or conference..."
+          />
+        </label>
 
         <div className="assignment-form-footer">
           <span className="muted">
-            {visibleAssignableTeamIds.length} of {assignableTeamIds.length} teams available
+            {assignableTeams.length} teams available
           </span>
           <button onClick={() => void assignTeam()} disabled={busy || !selectedTeamId}>
             {busy ? 'Assigning...' : 'Assign Team'}
@@ -830,11 +1019,14 @@ function ConferenceEditorScreen({
           const conference = conferenceById.get(team.conferenceId ?? '');
           return (
             <div className="conference-editor-row" key={team.id}>
-              <div>
-                <strong>{team.name}</strong>
-                <span>
-                  {team.abbreviation} - {conference?.abbreviation ?? conference?.name ?? 'No conference'}
-                </span>
+              <div className="conference-editor-team">
+                <TeamMark team={team} size="md" />
+                <div>
+                  <strong>{team.name}</strong>
+                  <span>
+                    {team.abbreviation} - {conference?.abbreviation ?? conference?.name ?? 'No conference'}
+                  </span>
+                </div>
               </div>
               <select
                 value={team.conferenceId ?? ''}
@@ -864,6 +1056,8 @@ export function CommissionerAdvanceSeasonPage() {
   const [teams, setTeams] = useState<Team[]>(PLACEHOLDER_TEAMS);
   const [postseasonResults, setPostseasonResults] = useState<PostseasonResult[]>([]);
   const [nationalChampionTeamId, setNationalChampionTeamId] = useState('');
+  const [heismanPlayerName, setHeismanPlayerName] = useState('');
+  const [heismanTeamId, setHeismanTeamId] = useState('');
   const [bowlWins, setBowlWins] = useState<BowlWinDraftRow[]>([
     { id: crypto.randomUUID(), bowlName: '', teamId: '' },
   ]);
@@ -930,15 +1124,22 @@ export function CommissionerAdvanceSeasonPage() {
     setBusy(true);
     setMessage(null);
     try {
-      const result = await api.advanceToNextSeason(assignments);
+      const heisman: SeasonAdvanceHeismanInput | undefined =
+        heismanPlayerName.trim() || heismanTeamId
+          ? { playerName: heismanPlayerName.trim(), teamId: heismanTeamId }
+          : undefined;
+      const result = await api.advanceToNextSeason(assignments, heisman);
+      const heismanNote = result.archivedSeason.heismanWinner
+        ? ` Heisman: ${result.archivedSeason.heismanWinner.playerName}.`
+        : '';
       if (publishAfter && api.publishToHosted) {
         const published = await api.publishToHosted();
         setMessage(
-          `Advanced to ${result.currentSeasonYear}. Archived ${result.previousSeasonYear} (${result.archivedSeason.schedule.length} games). Carried ${result.rostersCarriedForward} rosters. Published batch ${published.batchId}.`
+          `Advanced to ${result.currentSeasonYear}. Archived ${result.previousSeasonYear} (${result.archivedSeason.schedule.length} games). Carried ${result.rostersCarriedForward} rosters.${heismanNote} Published batch ${published.batchId}.`
         );
       } else {
         setMessage(
-          `Advanced to ${result.currentSeasonYear}. Archived ${result.previousSeasonYear}. Carried ${result.rostersCarriedForward} rosters. Publish when ready.`
+          `Advanced to ${result.currentSeasonYear}. Archived ${result.previousSeasonYear}. Carried ${result.rostersCarriedForward} rosters.${heismanNote} Publish when ready.`
         );
       }
       await refreshPreview();
@@ -1036,9 +1237,16 @@ export function CommissionerAdvanceSeasonPage() {
     );
   }
 
+  function resetPostseasonInputs() {
+    setNationalChampionTeamId('');
+    setHeismanPlayerName('');
+    setHeismanTeamId('');
+    setBowlWins([{ id: crypto.randomUUID(), bowlName: '', teamId: '' }]);
+  }
+
   return (
-    <section className="grid two advance-season-page">
-      <article className="panel full">
+    <section className="advance-season-page">
+      <article className="panel season-advance-intro">
         <h3>Advance to Next Season</h3>
         <p className="muted">
           Review each active coach, choose stay, leave, or change teams, then archive{' '}
@@ -1051,7 +1259,14 @@ export function CommissionerAdvanceSeasonPage() {
         )}
       </article>
 
-      <article className="panel full">
+      <article className="panel season-workflow-panel">
+        <div className="season-workflow-heading">
+          <span>Step 1</span>
+          <div>
+            <h3>Review Coach Decisions</h3>
+            <p className="muted">Confirm every active coach before the rollover creates the new season.</p>
+          </div>
+        </div>
         <DataTable
           headers={['Coach', 'Current Team', 'Decision', 'Next Team']}
           rows={assignments.map((assignment) => [
@@ -1091,69 +1306,136 @@ export function CommissionerAdvanceSeasonPage() {
         />
       </article>
 
-      <article className="panel full postseason-panel">
-        <h3>Postseason Archive</h3>
-        <p className="muted">
-          Upload conference championship results when capture support is ready, record user bowl wins, and set the national champion before advancing the season.
-        </p>
-        <h4>Conference Championships</h4>
-        <div className="notice compact-notice">
-          Conference champion screenshot upload is coming next. Those games will be added to the season schedule so coaches can see them alongside the rest of the year.
-        </div>
-        <button className="secondary" disabled>
-          Upload conference championship screenshot
-        </button>
-
-        <div className="grid two compact-grid">
-          <label className="stacked-field">
-            <span>National champion</span>
-            <SearchableTeamSelect
-              id="national-champion-team"
-              teams={teamOptions}
-              value={nationalChampionTeamId}
-              onChange={setNationalChampionTeamId}
-              placeholder="Search national champion..."
-            />
-          </label>
-        </div>
-
-        <h4>Bowl Wins</h4>
-        <p className="muted">Only user-controlled teams are tracked here. CPU-only bowl games are ignored for now.</p>
-        <div className="editable-table">
-          <div className="editable-row editable-row-header bowl-win-row">
-            <span>Game</span>
-            <span>Winning Team</span>
-            <span></span>
+      <article className="panel season-workflow-panel postseason-panel">
+        <div className="season-workflow-heading">
+          <span>Step 2</span>
+          <div>
+            <h3>Build Postseason Archive</h3>
+            <p className="muted">
+              Record the results coaches should see attached to the closing season.
+            </p>
           </div>
-          {bowlWins.map((row) => (
-            <div key={row.id} className="editable-row bowl-win-row">
-              <SearchableTextSelect
-                id={`bowl-game-${row.id}`}
-                options={[...TRADITIONAL_BOWL_GAMES]}
-                value={row.bowlName}
-                onChange={(bowlName) => updateBowlWin(row.id, { bowlName })}
-                placeholder="Search bowl game..."
-              />
-              <SearchableTeamSelect
-                id={`bowl-winner-${row.id}`}
-                teams={userTeamOptions}
-                value={row.teamId}
-                onChange={(teamId) => updateBowlWin(row.id, { teamId })}
-                placeholder="Search user team..."
-              />
-              <button className="secondary" onClick={() => removeBowlWin(row.id)}>
-                Remove
+        </div>
+
+        <div className="season-workflow-sections">
+          <section className="workflow-section">
+            <div className="workflow-section-header">
+              <div>
+                <h4>Conference Championships</h4>
+                <p className="muted">
+                  Screenshot import is coming next. These games will later be added alongside the
+                  season schedule.
+                </p>
+              </div>
+              <button className="secondary" disabled>
+                Upload screenshot
               </button>
             </div>
-          ))}
+          </section>
+
+          <section className="workflow-section">
+            <h4>National Champion</h4>
+            <label className="stacked-field">
+              <span>Champion team</span>
+              <SearchableTeamSelect
+                id="national-champion-team"
+                teams={teamOptions}
+                value={nationalChampionTeamId}
+                onChange={setNationalChampionTeamId}
+                placeholder="Search national champion..."
+              />
+            </label>
+          </section>
+
+          <section className="workflow-section">
+            <h4>Heisman Winner</h4>
+            <p className="muted">
+              Choose any team and enter the player name. Rollover will attach a roster player match
+              when the name exists on that team, and coach metadata when the team is user-controlled.
+            </p>
+            <div className="heisman-winner-grid">
+              <label className="stacked-field">
+                <span>Player name</span>
+                <input
+                  value={heismanPlayerName}
+                  onChange={(event) => setHeismanPlayerName(event.target.value)}
+                  placeholder="Type player name..."
+                />
+              </label>
+              <label className="stacked-field">
+                <span>Team</span>
+                <SearchableTeamSelect
+                  id="heisman-winner-team"
+                  teams={teamOptions}
+                  value={heismanTeamId}
+                  onChange={setHeismanTeamId}
+                  placeholder="Search team..."
+                />
+              </label>
+            </div>
+          </section>
+
+          <section className="workflow-section">
+            <div className="workflow-section-header">
+              <div>
+                <h4>Bowl Wins</h4>
+                <p className="muted">
+                  Only user-controlled teams are tracked here. CPU-only bowl games are ignored for
+                  now.
+                </p>
+              </div>
+              <button className="secondary" onClick={addBowlWin}>
+                Add bowl win
+              </button>
+            </div>
+            <div className="editable-table">
+              <div className="editable-row editable-row-header bowl-win-row">
+                <span>Game</span>
+                <span>Winning Team</span>
+                <span></span>
+              </div>
+              {bowlWins.map((row) => (
+                <div key={row.id} className="editable-row bowl-win-row">
+                  <SearchableTextSelect
+                    id={`bowl-game-${row.id}`}
+                    options={[...TRADITIONAL_BOWL_GAMES]}
+                    value={row.bowlName}
+                    onChange={(bowlName) => updateBowlWin(row.id, { bowlName })}
+                    placeholder="Search bowl game..."
+                  />
+                  <SearchableTeamSelect
+                    id={`bowl-winner-${row.id}`}
+                    teams={userTeamOptions}
+                    value={row.teamId}
+                    onChange={(teamId) => updateBowlWin(row.id, { teamId })}
+                    placeholder="Search user team..."
+                  />
+                  <button className="secondary" onClick={() => removeBowlWin(row.id)}>
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
+
         <div className="postseason-actions">
-          <button className="secondary" onClick={addBowlWin}>
-            Add bowl win
+          <button className="secondary" onClick={resetPostseasonInputs}>
+            Reset inputs
           </button>
-          <button className="secondary" onClick={() => void savePostseasonArchive()} disabled={busy}>
+          <button onClick={() => void savePostseasonArchive()} disabled={busy}>
             Save postseason archive
           </button>
+        </div>
+      </article>
+
+      <article className="panel season-workflow-panel">
+        <div className="season-workflow-heading">
+          <span>Review</span>
+          <div>
+            <h3>Saved Postseason Results</h3>
+            <p className="muted">Verify what has already been saved for this season.</p>
+          </div>
         </div>
         <DataTable
           headers={['Type', 'Team / Details', 'Title', '']}
@@ -1173,44 +1455,78 @@ export function CommissionerAdvanceSeasonPage() {
         />
       </article>
 
-      <article className="panel">
-        <h3>Confirm</h3>
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
-            checked={publishAfter}
-            onChange={(event) => setPublishAfter(event.target.checked)}
-          />
-          Publish to hosted immediately after rollover
-        </label>
-        <button onClick={() => void confirmAdvance()} disabled={busy || !preview}>
-          {busy ? 'Advancing…' : `Advance to ${preview?.nextSeasonYear ?? 'next season'}`}
-        </button>
+      <article className="panel season-workflow-panel season-advance-confirm">
+        <div className="season-workflow-heading">
+          <span>Final Step</span>
+          <div>
+            <h3>Advance Season</h3>
+            <p className="muted">
+              Finish only after coach decisions and postseason results are ready.
+            </p>
+          </div>
+        </div>
+        <div className="advance-confirm-body">
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={publishAfter}
+              onChange={(event) => setPublishAfter(event.target.checked)}
+            />
+            Publish to hosted immediately after rollover
+          </label>
+          <button onClick={() => void confirmAdvance()} disabled={busy || !preview}>
+            {busy ? 'Advancing…' : `Advance to ${preview?.nextSeasonYear ?? 'next season'}`}
+          </button>
+        </div>
+        {preview && (
+          <p className="advance-season-footnote">
+            Archive preview: {preview.currentSeasonYear} closes with {preview.archivedSeason.schedule.length}{' '}
+            games and {preview.teamRosterSnapshots.length} roster snapshots. {preview.nextSeasonYear}{' '}
+            opens with an empty schedule until import.
+          </p>
+        )}
       </article>
-      {preview && (
-        <p className="advance-season-footnote">
-          Archive preview: {preview.currentSeasonYear} closes with {preview.archivedSeason.schedule.length}{' '}
-          games and {preview.teamRosterSnapshots.length} roster snapshots. {preview.nextSeasonYear} opens with an empty schedule until import.
-        </p>
-      )}
     </section>
   );
 }
 
 export function CommissionerArchivePage() {
+  const [config, setConfig] = useState<CommissionerConfig | null>(null);
   const [summary, setSummary] = useState<DynastyArchiveSummary | null>(null);
   const [weekPreview, setWeekPreview] = useState<WeekAdvancePreview | null>(null);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [rosterImports, setRosterImports] = useState<RosterImportRecord[]>([]);
+  const [scheduleImports, setScheduleImports] = useState<
+    Awaited<ReturnType<NonNullable<typeof api.listScheduleImports>>>
+  >([]);
+  const [top25Imports, setTop25Imports] = useState<
+    Awaited<ReturnType<NonNullable<typeof api.listTop25Imports>>>
+  >([]);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [top25Busy, setTop25Busy] = useState(false);
+  const [catalogSearch, setCatalogSearch] = useState('');
+  const [catalogExitFilter, setCatalogExitFilter] = useState<CatalogExitFilter>('all');
 
   async function refresh() {
     if (!api.getDynastyArchiveSummary) return;
-    const [nextSummary, nextWeekPreview] = await Promise.all([
+    const nextConfig = (await api.getCommissionerConfig?.()) ?? null;
+    setConfig(nextConfig);
+    const dynastyId = nextConfig?.dynastyId;
+    const [nextSummary, nextWeekPreview, nextTeams, nextRosterImports, nextScheduleImports, nextTop25Imports] = await Promise.all([
       api.getDynastyArchiveSummary(),
       api.previewWeekAdvance?.() ?? null,
+      api.listTeams?.() ?? [],
+      dynastyId ? api.listRosterImports?.(dynastyId) ?? [] : [],
+      api.listScheduleImports?.() ?? [],
+      api.listTop25Imports?.() ?? [],
     ]);
     setSummary(nextSummary);
     setWeekPreview(nextWeekPreview);
+    setTeams(nextTeams);
+    setRosterImports(nextRosterImports);
+    setScheduleImports(nextScheduleImports);
+    setTop25Imports(nextTop25Imports);
   }
 
   useEffect(() => {
@@ -1231,6 +1547,57 @@ export function CommissionerArchivePage() {
       setMessage(String(error));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function importTop25Screenshot() {
+    if (!config) return;
+    if (!api.importTop25Screenshot) {
+      setMessage('Restart the desktop app to load the latest league-wide import tools.');
+      return;
+    }
+
+    setTop25Busy(true);
+    setMessage(null);
+    try {
+      const imported = await api.importTop25Screenshot({ dynastyId: config.dynastyId });
+      if (!imported) {
+        setMessage('Top 25 screenshot selection canceled.');
+        return;
+      }
+      const warningNote =
+        imported.warnings && imported.warnings.length > 0
+          ? ` (${imported.warnings.length} merge warning${imported.warnings.length === 1 ? '' : 's'} — review before advancing week.)`
+          : '';
+      setMessage(`Imported ${imported.rankings.entries.length} Top 25 rankings.${warningNote}`);
+      await refresh();
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setTop25Busy(false);
+    }
+  }
+
+  async function undoLatestTop25Import() {
+    if (!api.undoLatestTop25Import) {
+      setMessage('Restart the desktop app to enable Top 25 undo.');
+      return;
+    }
+
+    setTop25Busy(true);
+    setMessage(null);
+    try {
+      const result = await api.undoLatestTop25Import();
+      setMessage(
+        result.removedTop25Imports > 0
+          ? 'Removed the latest Top 25 upload.'
+          : 'No Top 25 uploads found.'
+      );
+      await refresh();
+    } catch (error) {
+      setMessage(String(error));
+    } finally {
+      setTop25Busy(false);
     }
   }
 
@@ -1263,76 +1630,240 @@ export function CommissionerArchivePage() {
     );
   }
 
+  const teamNameById = new Map(teams.map((team) => [team.id, team.name]));
+  const latestRosterByTeam = new Map<string, RosterImportRecord>();
+  for (const item of rosterImports) {
+    const current = latestRosterByTeam.get(item.teamId);
+    if (!current || item.importedAt.localeCompare(current.importedAt) > 0) {
+      latestRosterByTeam.set(item.teamId, item);
+    }
+  }
+  const currentSeasonYear = weekPreview?.currentSeasonYear ?? summary?.currentSeasonYear;
+  const scheduleUploadsToArchive = currentSeasonYear
+    ? scheduleImports.filter((item) => item.season.year === currentSeasonYear)
+    : scheduleImports;
+  const top25UploadsToArchive = currentSeasonYear
+    ? top25Imports.filter((item) => item.rankings.seasonYear === currentSeasonYear)
+    : top25Imports;
+  const catalogQuery = catalogSearch.trim().toLowerCase();
+  const filteredPlayerCatalog = (summary?.playerCatalog ?? []).filter((entry) => {
+    const matchesExit = catalogExitFilter === 'all' || entry.exitStatus === catalogExitFilter;
+    if (!matchesExit) return false;
+    if (!catalogQuery) return true;
+    const searchable = [
+      entry.firstName,
+      entry.lastName,
+      entry.position,
+      entry.exitStatus,
+      entry.firstSeenSeasonYear,
+      entry.lastSeenSeasonYear,
+      entry.exitSeasonYear,
+    ]
+      .filter((value) => value !== undefined)
+      .join(' ')
+      .toLowerCase();
+    return searchable.includes(catalogQuery);
+  });
+  const visiblePlayerCatalog = filteredPlayerCatalog.slice(0, CATALOG_TABLE_LIMIT);
+  const hiddenPlayerCatalogCount = Math.max(filteredPlayerCatalog.length - visiblePlayerCatalog.length, 0);
+  const uploadRows = [
+    ...Array.from(latestRosterByTeam.values()).map((item) => [
+      'Roster',
+      item.team.name,
+      `${item.roster.players.length} players`,
+      new Date(item.importedAt).toLocaleString(),
+      item.sourceLabel,
+    ]),
+    ...scheduleUploadsToArchive.map((item) => [
+      'Schedule',
+      teamNameById.get(item.teamId) ?? item.teamId,
+      `${item.season.schedule.length} games`,
+      `${item.season.year}`,
+      item.sourceLabel,
+    ]),
+  ];
+
   return (
-    <section className="grid two">
-      <article className="panel full">
+    <section className="advance-season-page advance-week-page">
+      <article className="panel season-advance-intro">
         <h3>Advance Week</h3>
-        <p className="muted">
-          Lock the current imports into a weekly checkpoint and review the archive data built from those checkpoints.
-        </p>
+        <p className="muted">Review team updates, attach the current Top 25, then save the weekly checkpoint.</p>
         {message && <div className="notice">{message}</div>}
-        {summary && (
-          <dl className="meta-list">
-            <div>
-              <dt>Current season</dt>
-              <dd>
-                {summary.currentSeasonYear}
-                {summary.currentWeek !== null ? ` · week ${summary.currentWeek}` : ' · no checkpoints yet'}
-              </dd>
+
+        {(summary || weekPreview) && (
+          <details className="details-drawer">
+            <summary>See more details</summary>
+            <div className="details-drawer-grid">
+              {summary && (
+                <dl className="details compact-details">
+                  <dt>Current season</dt>
+                  <dd>
+                    {summary.currentSeasonYear}
+                    {summary.currentWeek !== null ? ` · week ${summary.currentWeek}` : ' · no checkpoints yet'}
+                  </dd>
+                  <dt>Checkpoints</dt>
+                  <dd>{summary.checkpointCount}</dd>
+                  <dt>Archived seasons</dt>
+                  <dd>{summary.archivedSeasonCount}</dd>
+                  <dt>Player catalog</dt>
+                  <dd>{summary.playerCatalogCount}</dd>
+                  <dt>Postseason results</dt>
+                  <dd>{summary.postseasonResultCount}</dd>
+                </dl>
+              )}
+
+              {weekPreview && (
+                <dl className="details compact-details">
+                  <dt>Next checkpoint</dt>
+                  <dd>
+                    {weekPreview.currentSeasonYear} week {weekPreview.nextWeek}
+                  </dd>
+                  <dt>Rosters</dt>
+                  <dd>
+                    {weekPreview.teamCount} teams · {weekPreview.rosterPlayerCount} players
+                  </dd>
+                  <dt>Schedule games</dt>
+                  <dd>{weekPreview.scheduleGameCount}</dd>
+                  <dt>Top 25 attached</dt>
+                  <dd>{weekPreview.hasTop25 ? 'Yes' : 'No'}</dd>
+                </dl>
+              )}
             </div>
-            <div>
-              <dt>Checkpoints</dt>
-              <dd>{summary.checkpointCount}</dd>
-            </div>
-            <div>
-              <dt>Archived seasons</dt>
-              <dd>{summary.archivedSeasonCount}</dd>
-            </div>
-            <div>
-              <dt>Player catalog</dt>
-              <dd>{summary.playerCatalogCount}</dd>
-            </div>
-            <div>
-              <dt>Postseason results</dt>
-              <dd>{summary.postseasonResultCount}</dd>
-            </div>
-          </dl>
+          </details>
         )}
       </article>
 
-      <article className="panel full">
-        <h3>Advance Week</h3>
-        {weekPreview && (
-          <dl className="meta-list">
+      <article className="panel season-workflow-panel archive-upload-checklist">
+        <div className="season-workflow-heading">
+          <span>Step 1</span>
+          <div>
+            <h3>View Team Updates</h3>
+            <p className="muted">Confirm the team uploads that will be archived into this checkpoint.</p>
+          </div>
+        </div>
+        <div className="archive-upload-summary">
+          <span>{latestRosterByTeam.size} roster uploads</span>
+          <span>{scheduleUploadsToArchive.length} schedule uploads</span>
+        </div>
+        <DataTable
+          headers={['Type', 'Scope', 'Data', 'Captured', 'Source']}
+          rows={uploadRows}
+          empty="No team uploads are ready to archive yet. Import roster or schedule screenshots first."
+        />
+      </article>
+
+      <article className="panel season-workflow-panel">
+        <div className="season-workflow-heading">
+          <span>Step 2</span>
+          <div>
+            <h3>Upload Top 25</h3>
+            <p className="muted">Attach the current rankings before saving the weekly checkpoint.</p>
+          </div>
+        </div>
+        <div className="season-workflow-sections">
+          <section className="workflow-section">
+            <div className="workflow-section-header">
+              <div>
+                <h4>Top 25 Screenshot OCR</h4>
+                <p className="muted">
+                  {top25UploadsToArchive.length > 0
+                    ? `${top25UploadsToArchive.length} Top 25 upload${top25UploadsToArchive.length === 1 ? '' : 's'} ready for ${currentSeasonYear}.`
+                    : 'No Top 25 upload is attached for this season yet.'}
+                </p>
+              </div>
+              <div className="actions compact-actions">
+                <button
+                  className="secondary"
+                  onClick={() => void importTop25Screenshot()}
+                  disabled={top25Busy || busy || !config}
+                >
+                  {top25Busy ? 'Importing...' : 'Upload Top 25'}
+                </button>
+                <button
+                  className="secondary"
+                  onClick={() => void undoLatestTop25Import()}
+                  disabled={top25Busy || busy || top25Imports.length === 0}
+                >
+                  Undo Latest
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="workflow-section playoff-ocr-placeholder">
             <div>
-              <dt>Next checkpoint</dt>
-              <dd>
+              <p className="eyebrow">Coming soon</p>
+              <h4>Playoff OCR Upload</h4>
+              <p className="muted">
+                This will support playoff bracket and postseason screenshot OCR after the parser and review flow are added.
+              </p>
+            </div>
+            <div className="placeholder-upload-zone" aria-disabled="true">
+              <span>Screenshot upload placeholder</span>
+              <strong>Drop playoff screenshots here later</strong>
+              <small>Not wired up yet</small>
+            </div>
+            <button className="secondary" disabled>
+              Upload Playoff Screenshot
+            </button>
+          </section>
+        </div>
+      </article>
+
+      <article className="panel season-workflow-panel season-advance-confirm">
+        <div className="season-workflow-heading">
+          <span>Final Step</span>
+          <div>
+            <h3>Submit Weekly Checkpoint</h3>
+            <p className="muted">Save this only after team updates and Top 25 uploads look right.</p>
+          </div>
+        </div>
+        <div className="advance-confirm-body">
+          {weekPreview && (
+            <div className="checkpoint-callout">
+              <span>Next checkpoint</span>
+              <strong>
                 {weekPreview.currentSeasonYear} week {weekPreview.nextWeek}
-              </dd>
+              </strong>
+              <small>
+                {weekPreview.teamCount} roster teams · {weekPreview.rosterPlayerCount} players ·{' '}
+                {weekPreview.scheduleGameCount} schedule games
+              </small>
             </div>
-            <div>
-              <dt>Rosters</dt>
-              <dd>
-                {weekPreview.teamCount} teams · {weekPreview.rosterPlayerCount} players
-              </dd>
-            </div>
-            <div>
-              <dt>Schedule games</dt>
-              <dd>{weekPreview.scheduleGameCount}</dd>
-            </div>
-            <div>
-              <dt>Top 25 attached</dt>
-              <dd>{weekPreview.hasTop25 ? 'Yes' : 'No'}</dd>
-            </div>
-          </dl>
-        )}
-        <button onClick={() => void advanceWeek()} disabled={busy || !api.advanceToNextWeek}>
-          {busy ? 'Saving checkpoint…' : 'Advance Week'}
-        </button>
+          )}
+          <div className="actions compact-actions">
+            <button className="secondary" onClick={() => void refresh()} disabled={busy || top25Busy}>
+              Undo / Refresh
+            </button>
+            <button onClick={() => void advanceWeek()} disabled={busy || top25Busy || !api.advanceToNextWeek}>
+              {busy ? 'Saving checkpoint...' : 'Submit Week'}
+            </button>
+          </div>
+        </div>
       </article>
 
       {summary && (
         <>
+          <article className="panel full">
+            <h3>Season Archive</h3>
+            <DataTable
+              headers={['Year', 'Games', 'National Champion', 'Heisman Winner']}
+              rows={summary.archivedSeasons.map((season) => [
+                season.year,
+                season.schedule.length,
+                season.nationalChampionTeamId
+                  ? teamNameById.get(season.nationalChampionTeamId) ?? season.nationalChampionTeamId
+                  : '—',
+                season.heismanWinner
+                  ? `${season.heismanWinner.playerName} (${teamNameById.get(season.heismanWinner.teamId) ?? season.heismanWinner.teamId})${
+                      season.heismanWinner.matchedRosterPlayer ? '' : ' - roster match not found'
+                    }`
+                  : '—',
+              ])}
+              empty="No seasons archived yet. Use Advance Season after completing postseason review."
+            />
+          </article>
+
           <article className="panel full">
             <h3>Checkpoints</h3>
             <DataTable
@@ -1349,14 +1880,53 @@ export function CommissionerArchivePage() {
             />
           </article>
 
-          <article className="panel full">
-            <h3>Player Catalog</h3>
+          <article className="panel full player-catalog-panel">
+            <div className="section-header catalog-section-header">
+              <div>
+                <h3>Player Catalog</h3>
+                <p className="muted">
+                  Search historical players by name, position, status, or season instead of scanning the full archive.
+                </p>
+              </div>
+              <span className="catalog-count">
+                Showing {visiblePlayerCatalog.length} of {filteredPlayerCatalog.length}
+              </span>
+            </div>
+            <div className="catalog-toolbar">
+              <label>
+                <span>Search players</span>
+                <input
+                  value={catalogSearch}
+                  onChange={(event) => setCatalogSearch(event.target.value)}
+                  placeholder="Name, position, status, season..."
+                />
+              </label>
+              <label>
+                <span>Status</span>
+                <select
+                  value={catalogExitFilter}
+                  onChange={(event) => setCatalogExitFilter(event.target.value as CatalogExitFilter)}
+                >
+                  <option value="all">All statuses</option>
+                  <option value="active">Active</option>
+                  <option value="graduated">Graduated</option>
+                  <option value="transferred">Transferred</option>
+                  <option value="unknown">Unknown</option>
+                </select>
+              </label>
+            </div>
+            {hiddenPlayerCatalogCount > 0 && (
+              <p className="muted catalog-limit-note">
+                Narrow the filters to see {hiddenPlayerCatalogCount} more matching player
+                {hiddenPlayerCatalogCount === 1 ? '' : 's'}.
+              </p>
+            )}
             <DataTable
-              headers={['Player', 'Position', 'Last seen', 'Exit', 'Actions']}
-              rows={summary.playerCatalog.slice(0, 100).map((entry) => [
+              headers={['Player', 'Position', 'Seen', 'Exit', 'Actions']}
+              rows={visiblePlayerCatalog.map((entry) => [
                 `${entry.firstName} ${entry.lastName}`,
                 entry.position,
-                entry.lastSeenSeasonYear,
+                `${entry.firstSeenSeasonYear}-${entry.lastSeenSeasonYear}`,
                 entry.exitStatus,
                 api.updatePlayerCatalogEntry ? (
                   <div className="actions compact-actions">
@@ -1458,45 +2028,33 @@ export function CommissionerTeamImportsPage() {
   const [scheduleImports, setScheduleImports] = useState<
     Awaited<ReturnType<NonNullable<typeof api.listScheduleImports>>>
   >([]);
-  const [top25Imports, setTop25Imports] = useState<
-    Awaited<ReturnType<NonNullable<typeof api.listTop25Imports>>>
-  >([]);
   const [selectedTenureId, setSelectedTenureId] = useState('');
-  const [showTop25, setShowTop25] = useState(false);
   const [showAllRoster, setShowAllRoster] = useState(false);
-  const [top25Draft, setTop25Draft] = useState<Top25DraftRow[]>([]);
   const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraftRow[]>([]);
   const [rosterDraft, setRosterDraft] = useState<RosterDraftRow[]>([]);
-  const [editingTop25Index, setEditingTop25Index] = useState<number | null>(null);
   const [editingScheduleIndex, setEditingScheduleIndex] = useState<number | null>(null);
   const [editingRosterId, setEditingRosterId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [busyKind, setBusyKind] = useState<'roster' | 'schedule' | 'top25' | null>(null);
-  const [savingKind, setSavingKind] = useState<'roster' | 'schedule' | 'top25' | null>(null);
-  const [weekPreview, setWeekPreview] = useState<WeekAdvancePreview | null>(null);
-  const [weekBusy, setWeekBusy] = useState(false);
+  const [busyKind, setBusyKind] = useState<'roster' | 'schedule' | null>(null);
+  const [savingKind, setSavingKind] = useState<'roster' | 'schedule' | null>(null);
 
   async function refresh() {
     const nextConfig = config ?? (await api.getCommissionerConfig?.()) ?? null;
     if (!nextConfig) return;
     setConfig(nextConfig);
-    const [nextCoaches, nextTenures, nextRosters, nextSchedules, nextTop25Imports, nextWeekPreview] =
+    const [nextCoaches, nextTenures, nextRosters, nextSchedules] =
       await Promise.all([
       api.listCoaches?.() ?? [],
       api.listCommissionerTenures?.(nextConfig.dynastyId) ?? [],
       api.listRosterImports?.(nextConfig.dynastyId) ?? [],
       api.listScheduleImports?.() ?? [],
-      api.listTop25Imports?.() ?? [],
-      api.previewWeekAdvance?.() ?? null,
     ]);
     setCoaches(nextCoaches);
     setTenures(nextTenures);
     setRosterImports(nextRosters);
     setScheduleImports(nextSchedules);
-    setTop25Imports(nextTop25Imports);
-    setWeekPreview(nextWeekPreview);
-    setSelectedTenureId(
-      (current) => current || (nextTenures.find((tenure) => tenure.status === 'active')?.id ?? '')
+    setSelectedTenureId((current) =>
+      nextTenures.some((tenure) => tenure.status === 'active' && tenure.id === current) ? current : ''
     );
   }
 
@@ -1512,12 +2070,11 @@ export function CommissionerTeamImportsPage() {
     () => tenures.filter((tenure) => tenure.status === 'active'),
     [tenures]
   );
-  const selectedTenure =
-    activeTenures.find((tenure) => tenure.id === selectedTenureId) ?? activeTenures[0];
+  const selectedTenure = activeTenures.find((tenure) => tenure.id === selectedTenureId);
   const selectedCoach = coaches.find((coach) => coach.id === selectedTenure?.userId);
   const selectedTeamName = selectedTenure
     ? teamNameById.get(selectedTenure.teamId) ?? selectedTenure.teamId
-    : 'Selected Team';
+    : 'Select Team';
   const selectedTeamId = selectedTenure?.teamId;
   const teamOptions = useMemo(
     () => [...PLACEHOLDER_TEAMS].sort((a, b) => a.name.localeCompare(b.name)),
@@ -1526,14 +2083,13 @@ export function CommissionerTeamImportsPage() {
   const currentRoster = useMemo(
     () =>
       selectedTeamId
-        ? rosterImports.find((item) => item.teamId === selectedTeamId)?.roster ??
-          PLACEHOLDER_ROSTERS[selectedTeamId]
+        ? rosterImports.find((item) => item.teamId === selectedTeamId)?.roster
         : undefined,
     [rosterImports, selectedTeamId]
   );
   const currentRosterSource = selectedTeamId && rosterImports.some((item) => item.teamId === selectedTeamId)
     ? 'Latest imported roster'
-    : 'Placeholder roster';
+    : 'No roster imported';
   const currentScheduleImport = useMemo(
     () =>
       selectedTeamId
@@ -1545,32 +2101,12 @@ export function CommissionerTeamImportsPage() {
         : undefined,
     [scheduleImports, selectedTeamId]
   );
-  const fallbackSeason = PLACEHOLDER_DYNASTY.seasons.find(
-    (season) => season.year === PLACEHOLDER_DYNASTY.currentSeasonYear
-  );
   const currentSchedule = useMemo(
     () =>
-      currentScheduleImport?.season.schedule ??
-      fallbackSeason?.schedule.filter(
-        (game) => game.homeTeamId === selectedTeamId || game.awayTeamId === selectedTeamId
-      ) ??
-      [],
-    [currentScheduleImport, fallbackSeason, selectedTeamId]
+      currentScheduleImport?.season.schedule ?? [],
+    [currentScheduleImport]
   );
-  const currentScheduleSource = currentScheduleImport ? 'Latest imported schedule' : 'Placeholder schedule';
-  const latestTop25 = [...top25Imports]
-    .map((item) => item.rankings)
-    .sort((a, b) => b.capturedAt.localeCompare(a.capturedAt))[0];
-  const currentTop25 = latestTop25
-    ? latestTop25.entries.slice().sort((a, b) => a.rank - b.rank)
-    : getTop25FromStandings();
-  const top25Source = latestTop25 ? 'Latest imported Top 25' : 'Placeholder standings';
-  const top25Baseline = currentTop25.slice(0, 25).map((entry) => ({
-    rank: entry.rank,
-    teamId: entry.teamId,
-    wins: entry.wins,
-    losses: entry.losses,
-  }));
+  const currentScheduleSource = currentScheduleImport ? 'Latest imported schedule' : 'No schedule imported';
   const scheduleBaseline = selectedTeamId
     ? currentSchedule.map((game) => scheduleGameToDraft(game, selectedTeamId))
     : [];
@@ -1582,21 +2118,8 @@ export function CommissionerTeamImportsPage() {
     position: player.position,
     overall: player.ratings.overall,
   }));
-  const hasTop25Changes = JSON.stringify(top25Draft) !== JSON.stringify(top25Baseline);
   const hasScheduleChanges = JSON.stringify(scheduleDraft) !== JSON.stringify(scheduleBaseline);
   const hasRosterChanges = JSON.stringify(rosterDraft) !== JSON.stringify(rosterBaseline);
-  const visibleTop25Draft = showTop25 ? top25Draft : top25Draft.slice(0, 9);
-
-  useEffect(() => {
-    setTop25Draft(
-      currentTop25.slice(0, 25).map((entry) => ({
-        rank: entry.rank,
-        teamId: entry.teamId,
-        wins: entry.wins,
-        losses: entry.losses,
-      }))
-    );
-  }, [top25Imports]);
 
   useEffect(() => {
     if (!selectedTeamId) {
@@ -1620,18 +2143,6 @@ export function CommissionerTeamImportsPage() {
     );
   }, [currentRoster]);
 
-  function revertTop25Edits() {
-    setTop25Draft(
-      currentTop25.slice(0, 25).map((entry) => ({
-        rank: entry.rank,
-        teamId: entry.teamId,
-        wins: entry.wins,
-        losses: entry.losses,
-      }))
-    );
-    setEditingTop25Index(null);
-  }
-
   function revertScheduleEdits() {
     setScheduleDraft(
       selectedTeamId ? currentSchedule.map((game) => scheduleGameToDraft(game, selectedTeamId)) : []
@@ -1654,41 +2165,20 @@ export function CommissionerTeamImportsPage() {
   }
 
   useEffect(() => {
-    if (editingTop25Index === null && editingScheduleIndex === null && editingRosterId === null) return;
+    if (editingScheduleIndex === null && editingRosterId === null) return;
 
     function closeEditModeOnOutsideClick(event: PointerEvent) {
       const target = event.target;
       if (!(target instanceof Element)) return;
       if (target.closest('.click-edit-row')) return;
 
-      setEditingTop25Index(null);
       setEditingScheduleIndex(null);
       setEditingRosterId(null);
     }
 
     document.addEventListener('pointerdown', closeEditModeOnOutsideClick, true);
     return () => document.removeEventListener('pointerdown', closeEditModeOnOutsideClick, true);
-  }, [editingRosterId, editingScheduleIndex, editingTop25Index]);
-
-  async function advanceWeekFromImports() {
-    if (!api.advanceToNextWeek) {
-      setMessage('Restart the desktop app to enable weekly checkpoints.');
-      return;
-    }
-    setWeekBusy(true);
-    setMessage(null);
-    try {
-      const result = await api.advanceToNextWeek();
-      setMessage(
-        `Saved ${result.seasonYear} week ${result.week} checkpoint (${result.progressionSnapshots} new progression snapshots).`
-      );
-      await refresh();
-    } catch (error) {
-      setMessage(String(error));
-    } finally {
-      setWeekBusy(false);
-    }
-  }
+  }, [editingRosterId, editingScheduleIndex]);
 
   async function importRosterScreenshot() {
     if (!config || !selectedTenure) return;
@@ -1756,77 +2246,6 @@ export function CommissionerTeamImportsPage() {
     }
   }
 
-  async function importTop25Screenshot() {
-    if (!config) return;
-    if (!api.importTop25Screenshot) {
-      setMessage('Restart the desktop app to load the latest league-wide import tools.');
-      return;
-    }
-
-    setBusyKind('top25');
-    setMessage(null);
-    try {
-      const imported = await api.importTop25Screenshot({ dynastyId: config.dynastyId });
-      if (!imported) {
-        setMessage('Top 25 screenshot selection canceled.');
-        return;
-      }
-      const warningNote =
-        imported.warnings && imported.warnings.length > 0
-          ? ` (${imported.warnings.length} merge warning${imported.warnings.length === 1 ? '' : 's'} — review before saving.)`
-          : '';
-      setMessage(`Imported ${imported.rankings.entries.length} Top 25 rankings.${warningNote}`);
-      await refresh();
-    } catch (error) {
-      setMessage(String(error));
-    } finally {
-      setBusyKind(null);
-    }
-  }
-
-  async function saveTop25Edits() {
-    if (!config || !api.saveManualTop25 || !hasTop25Changes) return;
-    setSavingKind('top25');
-    setMessage(null);
-    try {
-      if (top25Draft.length !== 25) {
-        setMessage('Top 25 must include exactly 25 ranked teams before saving.');
-        return;
-      }
-
-      const missingRows = top25Draft.filter((row) => !row.teamId);
-      if (missingRows.length > 0) {
-        setMessage(`Choose a team for rank #${missingRows[0]?.rank} before saving the Top 25.`);
-        setEditingTop25Index(top25Draft.findIndex((row) => !row.teamId));
-        return;
-      }
-
-      const duplicateTeam = top25Draft.find((row, index) =>
-        top25Draft.some((other, otherIndex) => otherIndex !== index && other.teamId === row.teamId)
-      );
-      if (duplicateTeam) {
-        setMessage(`${teamNameById.get(duplicateTeam.teamId) ?? duplicateTeam.teamId} is listed more than once in the Top 25.`);
-        return;
-      }
-
-      const entries: RankingEntry[] = top25Draft.map((row) => ({
-          rank: Number(row.rank),
-          teamId: row.teamId,
-          teamName: teamNameById.get(row.teamId) ?? row.teamId,
-          wins: Number(row.wins),
-          losses: Number(row.losses),
-        }));
-      await api.saveManualTop25({ dynastyId: config.dynastyId, entries });
-      setEditingTop25Index(null);
-      setMessage('Top 25 edits saved.');
-      await refresh();
-    } catch (error) {
-      setMessage(String(error));
-    } finally {
-      setSavingKind(null);
-    }
-  }
-
   async function saveScheduleEdits() {
     if (!config || !selectedTeamId || !api.saveManualSchedule || !hasScheduleChanges) return;
     setSavingKind('schedule');
@@ -1834,7 +2253,7 @@ export function CommissionerTeamImportsPage() {
     try {
       const schedule = scheduleDraft
         .filter((row) => row.isBye || row.opponentTeamId)
-        .map((row) => draftToScheduleGame(row, selectedTeamId));
+        .map((row) => draftToScheduleGame(row, selectedTeamId, config.startingSeasonYear));
       await api.saveManualSchedule({ dynastyId: config.dynastyId, teamId: selectedTeamId, schedule });
       setEditingScheduleIndex(null);
       setMessage('Schedule edits saved.');
@@ -1933,51 +2352,6 @@ export function CommissionerTeamImportsPage() {
     }
   }
 
-  async function clearAllSelectedTeamData() {
-    if (!config || !selectedTeamId) return;
-    if (!api.clearTeamImports) {
-      setMessage('Restart the desktop app to enable temporary clear-all testing actions.');
-      return;
-    }
-    setBusyKind('roster');
-    setMessage(null);
-    try {
-      const result = await api.clearTeamImports({
-        dynastyId: config.dynastyId,
-        teamId: selectedTeamId,
-      });
-      setMessage(
-        `Cleared all testing imports for ${selectedTeamName}: ${result.removedRosterImports} roster, ${result.removedScheduleImports} schedule.`
-      );
-      await refresh();
-    } catch (error) {
-      setMessage(String(error));
-    } finally {
-      setBusyKind(null);
-    }
-  }
-
-  async function clearAllImportData() {
-    if (!config) return;
-    if (!api.clearAllImports) {
-      setMessage('Restart the desktop app to enable temporary clear-all import cleanup.');
-      return;
-    }
-    setBusyKind('top25');
-    setMessage(null);
-    try {
-      const result = await api.clearAllImports({ dynastyId: config.dynastyId });
-      setMessage(
-        `Cleared all imports: ${result.removedRosterImports} roster, ${result.removedScheduleImports} schedule, ${result.removedTop25Imports} Top 25.`
-      );
-      await refresh();
-    } catch (error) {
-      setMessage(String(error));
-    } finally {
-      setBusyKind(null);
-    }
-  }
-
   if (!api.importRosterScreenshotForTeam || !api.importScheduleScreenshotForTeam) {
     return (
       <section className="panel">
@@ -1988,27 +2362,21 @@ export function CommissionerTeamImportsPage() {
   }
 
   return (
-    <section className="grid two">
-      <div className="panel full">
-        <div className="section-header">
-          <div>
-            <h3>Team Data Imports</h3>
-            <p className="muted">
-              Pick an assigned coach/team, then upload roster or schedule screenshots for that same team.
-            </p>
-          </div>
-          <button className="secondary" onClick={() => void refresh()}>
-            Refresh
-          </button>
-        </div>
+    <section className="advance-season-page team-imports-page">
+      <div className="panel season-advance-intro">
+        <h3>Team Imports</h3>
+        <p className="muted">
+          Choose one assigned team, import its schedule first, then import and review its roster.
+        </p>
         {message && <div className="notice">{message}</div>}
       </div>
 
-      <div className="panel">
-        <div className="assignment-card-header">
+      <div className="panel season-workflow-panel">
+        <div className="season-workflow-heading">
+          <span>Step 1</span>
           <div>
-            <h3>Team-Scoped Imports</h3>
-            <p className="muted">Choose the assigned coach/team, then import data for that team.</p>
+            <h3>Choose Team</h3>
+            <p className="muted">All schedule and roster uploads below are saved to this selected team.</p>
           </div>
         </div>
         {activeTenures.length === 0 ? (
@@ -2016,7 +2384,8 @@ export function CommissionerTeamImportsPage() {
         ) : (
           <label className="stacked-field">
             <span>Coach / Team</span>
-            <select value={selectedTenure?.id ?? ''} onChange={(event) => setSelectedTenureId(event.target.value)}>
+            <select value={selectedTenureId} onChange={(event) => setSelectedTenureId(event.target.value)}>
+              <option value="">Select a coach / team...</option>
               {activeTenures.map((tenure) => {
                 const coach = coaches.find((item) => item.id === tenure.userId);
                 return (
@@ -2028,171 +2397,49 @@ export function CommissionerTeamImportsPage() {
             </select>
           </label>
         )}
-        {selectedTenure && (
-          <div className="assignment-summary">
-            <div className="summary-tile">
-              <span>Coach</span>
-              <strong>{selectedCoach?.displayName ?? selectedTenure.userId}</strong>
-            </div>
-            <div className="summary-tile">
-              <span>Team</span>
-              <strong>{teamNameById.get(selectedTenure.teamId) ?? selectedTenure.teamId}</strong>
-            </div>
-          </div>
-        )}
-        <div className="import-toolbox">
-          <div>
-            <h3>Upload For {selectedTeamName}</h3>
-            <p className="muted">
-              The selected team above determines where roster and schedule data is saved.
-            </p>
-          </div>
-
-          <div className="action-group">
-            <span>Checkpoint</span>
-            <div className="actions compact-actions">
-              <button
-                className="secondary"
-                onClick={() => void advanceWeekFromImports()}
-                disabled={!selectedTenure || busyKind !== null || weekBusy}
-              >
-                {weekBusy ? 'Saving checkpoint…' : 'Advance Week'}
-              </button>
-            </div>
-            {weekPreview && (
-              <p className="muted">
-                Next: {weekPreview.currentSeasonYear} week {weekPreview.nextWeek} ·{' '}
-                {weekPreview.rosterPlayerCount} players · {weekPreview.scheduleGameCount} schedule games
-              </p>
-            )}
-          </div>
-
-          <div className="action-group">
-            <span>Import</span>
-            <div className="actions compact-actions">
-              <button onClick={() => void importRosterScreenshot()} disabled={!selectedTenure || busyKind !== null}>
-                {busyKind === 'roster' ? 'Importing roster...' : 'Roster Screenshots'}
-              </button>
-              <button
-                className="secondary"
-                onClick={() => void importScheduleScreenshot()}
-                disabled={!selectedTenure || busyKind !== null}
-              >
-                {busyKind === 'schedule' ? 'Importing schedule...' : 'Schedule Screenshots'}
-              </button>
-            </div>
-          </div>
-
-          <div className="action-group">
-            <span>Undo Latest</span>
-            <div className="actions compact-actions">
-              <button
-                className="secondary"
-                onClick={() => void undoLastRosterImport()}
-                disabled={!selectedTenure || busyKind !== null}
-              >
-                Roster Import
-              </button>
-              <button
-                className="secondary"
-                onClick={() => void undoLastScheduleImport()}
-                disabled={!selectedTenure || busyKind !== null}
-              >
-                Schedule Import
-              </button>
-            </div>
-          </div>
-
-          <div className="action-group testing-tools">
-            <span>Temporary Testing Cleanup</span>
-            <div className="actions compact-actions">
-              <button
-                className="secondary danger"
-                onClick={() => void clearAllSelectedTeamData()}
-                disabled={!selectedTenure || busyKind !== null}
-              >
-                Clear Selected Team
-              </button>
-              <button
-                className="secondary danger"
-                onClick={() => void clearAllImportData()}
-                disabled={busyKind !== null}
-              >
-                Clear All Imports
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
 
-      <div className="panel">
-        <h3>League-Wide Updates</h3>
-        <p className="muted">Upload rankings and review the current Top 25 when needed.</p>
-        <div className="actions import-action-row">
-          <button
-            className="secondary"
-            onClick={() => void importTop25Screenshot()}
-            disabled={busyKind !== null}
-          >
-            {busyKind === 'top25' ? 'Importing Top 25...' : 'Upload Top 25 Screenshots'}
-          </button>
-          <button className="secondary" onClick={() => setShowTop25((current) => !current)}>
-            {showTop25 ? 'Show Top 9' : 'Show Top 25'}
-          </button>
+      {selectedTenure && (
+        <div className="selected-import-team-callout">
+          <span>Team Imports</span>
+          <strong>{teamNameById.get(selectedTenure.teamId) ?? selectedTenure.teamId}</strong>
+          <small>
+            Coach: {selectedCoach?.displayName ?? selectedTenure.userId} • Schedule + Roster Review
+          </small>
         </div>
-        <div className="embedded-top25">
-          <div className="card-heading">
-            <div>
-              <h4>{showTop25 ? 'Top 25' : 'Top 9'}</h4>
-              <p className="muted">{top25Source}. Click a row to edit.</p>
-            </div>
-          </div>
-          <div className="editable-table">
-            <div className="editable-row editable-row-header top25-edit-row">
-              <span>Rank</span>
-              <span>Team</span>
-              <span>W</span>
-              <span>L</span>
-            </div>
-            {visibleTop25Draft.map((row, index) => (
-              <Top25EditableRow
-                key={`${row.rank}-${index}`}
-                row={row}
-                index={index}
-                isEditing={editingTop25Index === index}
-                teamNameById={teamNameById}
-                teamOptions={teamOptions}
-                setEditingTop25Index={setEditingTop25Index}
-                setTop25Draft={setTop25Draft}
-              />
-            ))}
-          </div>
-          <div className="edit-actions">
-            <button className="secondary" onClick={revertTop25Edits} disabled={savingKind !== null || !hasTop25Changes}>
-              Revert Changes
-            </button>
-            <button className="secondary" onClick={() => void saveTop25Edits()} disabled={savingKind !== null || !hasTop25Changes}>
-              {savingKind === 'top25' ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
-        </div>
-      </div>
+      )}
 
-      <div className="panel full">
-        <div className="section-header">
+      {selectedTenure ? (
+      <div className="panel season-workflow-panel">
+        <div className="season-workflow-heading">
+          <span>Steps 2-3</span>
           <div>
-            <h3>Current Data For {selectedTeamName}</h3>
-            <p className="muted">
-              Review the current local data before replacing it with new screenshots.
-            </p>
+            <h3>Upload And Review {selectedTeamName}</h3>
+            <p className="muted">Schedule imports come first. Roster imports follow in the next box.</p>
           </div>
         </div>
         <div className="current-import-data">
-          <article className="current-data-card">
+          <article className="current-data-card workflow-section">
             <div className="card-heading">
               <div>
-                <h4>Selected Team Schedule</h4>
+                <h4>Schedule Import</h4>
                 <p className="muted">{currentScheduleSource}</p>
+              </div>
+              <div className="actions compact-actions">
+                <button
+                  className="secondary"
+                  onClick={() => void importScheduleScreenshot()}
+                  disabled={!selectedTenure || busyKind !== null}
+                >
+                  {busyKind === 'schedule' ? 'Importing...' : 'Upload Schedule'}
+                </button>
+                <button
+                  className="secondary"
+                  onClick={() => void undoLastScheduleImport()}
+                  disabled={!selectedTenure || busyKind !== null}
+                >
+                  Undo
+                </button>
               </div>
             </div>
             <div className="editable-table">
@@ -2310,14 +2557,26 @@ export function CommissionerTeamImportsPage() {
             </div>
           </article>
 
-          <article className="current-data-card">
+          <article className="current-data-card workflow-section">
             <div className="card-heading">
               <div>
-                <h4>Roster</h4>
+                <h4>Roster Import</h4>
                 <p className="muted">{currentRosterSource}</p>
               </div>
-              <span className="muted">{currentRoster?.players.length ?? 0} players</span>
+              <div className="actions compact-actions">
+                <button onClick={() => void importRosterScreenshot()} disabled={!selectedTenure || busyKind !== null}>
+                  {busyKind === 'roster' ? 'Importing...' : 'Upload Roster'}
+                </button>
+                <button
+                  className="secondary"
+                  onClick={() => void undoLastRosterImport()}
+                  disabled={!selectedTenure || busyKind !== null}
+                >
+                  Undo
+                </button>
+              </div>
             </div>
+            <p className="muted">{currentRoster?.players.length ?? 0} players</p>
             <div className="editable-table">
               <div className="editable-row editable-row-header roster-edit-row">
                 <span>#</span>
@@ -2410,8 +2669,19 @@ export function CommissionerTeamImportsPage() {
           </article>
         </div>
       </div>
+      ) : (
+        <div className="panel season-workflow-panel team-imports-locked">
+          <div className="season-workflow-heading">
+            <span>Steps 2-3</span>
+            <div>
+              <h3>Upload And Review</h3>
+              <p className="muted">Select a coach / team above before uploading schedule or roster screenshots.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
-      <div className="panel full">
+      <div className="panel season-workflow-panel">
         <h3>Recent Imports</h3>
         <DataTable
           headers={['Type', 'Team', 'Details', 'Source']}
@@ -2432,113 +2702,11 @@ export function CommissionerTeamImportsPage() {
                 item.sourceLabel,
               ];
             }),
-            ...top25Imports.map((item) => [
-              'Top 25',
-              'League',
-              `${item.rankings.entries.length} ranked teams`,
-              item.sourceLabel,
-            ]),
           ]}
           empty="No imports yet."
         />
       </div>
     </section>
-  );
-}
-
-function Top25EditableRow({
-  row,
-  index,
-  isEditing,
-  teamNameById,
-  teamOptions,
-  setEditingTop25Index,
-  setTop25Draft,
-}: {
-  row: Top25DraftRow;
-  index: number;
-  isEditing: boolean;
-  teamNameById: Map<string, string>;
-  teamOptions: Team[];
-  setEditingTop25Index: Dispatch<SetStateAction<number | null>>;
-  setTop25Draft: Dispatch<SetStateAction<Top25DraftRow[]>>;
-}) {
-  return (
-    <div
-      className="editable-row top25-edit-row click-edit-row"
-      onClick={(event) => {
-        event.stopPropagation();
-        setEditingTop25Index(index);
-      }}
-      onBlur={(event) => {
-        const nextTarget = event.relatedTarget;
-        if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
-          setEditingTop25Index(null);
-        }
-      }}
-    >
-      {isEditing ? (
-        <>
-          <input
-            type="number"
-            value={row.rank}
-            onChange={(event) =>
-              setTop25Draft((current) =>
-                current.map((item, itemIndex) =>
-                  itemIndex === index ? { ...item, rank: Number(event.target.value) } : item
-                )
-              )
-            }
-          />
-          <select
-            value={row.teamId}
-            onChange={(event) =>
-              setTop25Draft((current) =>
-                current.map((item, itemIndex) =>
-                  itemIndex === index ? { ...item, teamId: event.target.value } : item
-                )
-              )
-            }
-          >
-            <option value="">Choose team...</option>
-            {teamOptions.map((team) => (
-              <option key={team.id} value={team.id}>
-                {team.name}
-              </option>
-            ))}
-          </select>
-          <input
-            type="number"
-            value={row.wins}
-            onChange={(event) =>
-              setTop25Draft((current) =>
-                current.map((item, itemIndex) =>
-                  itemIndex === index ? { ...item, wins: Number(event.target.value) } : item
-                )
-              )
-            }
-          />
-          <input
-            type="number"
-            value={row.losses}
-            onChange={(event) =>
-              setTop25Draft((current) =>
-                current.map((item, itemIndex) =>
-                  itemIndex === index ? { ...item, losses: Number(event.target.value) } : item
-                )
-              )
-            }
-          />
-        </>
-      ) : (
-        <>
-          <span>#{row.rank}</span>
-          <strong>{row.teamId ? teamNameById.get(row.teamId) ?? row.teamId : 'Manual entry required'}</strong>
-          <span>{row.wins}</span>
-          <span>{row.losses}</span>
-        </>
-      )}
-    </div>
   );
 }
 
@@ -2608,12 +2776,13 @@ function scheduleGameToDraft(game: ScheduleGame, selectedTeamId: string): Schedu
 
 function draftToScheduleGame(
   row: ScheduleDraftRow,
-  selectedTeamId: string
+  selectedTeamId: string,
+  seasonYear: number
 ): ScheduleGame {
   if (row.isBye || row.site === 'bye') {
     return {
       id: row.id || `manual-week-${row.week}-bye-${selectedTeamId}`,
-      seasonId: `season-${PLACEHOLDER_DYNASTY.currentSeasonYear}`,
+      seasonId: `season-${seasonYear}`,
       week: Number(row.week),
       homeTeamId: selectedTeamId,
       awayTeamId: 'team-bye',
@@ -2628,7 +2797,7 @@ function draftToScheduleGame(
   const awayTeamId = isHome ? row.opponentTeamId : selectedTeamId;
   return {
     id: row.id || `manual-week-${row.week}-${awayTeamId}-at-${homeTeamId}`,
-    seasonId: `season-${PLACEHOLDER_DYNASTY.currentSeasonYear}`,
+    seasonId: `season-${seasonYear}`,
     week: Number(row.week),
     homeTeamId,
     awayTeamId,
@@ -2637,28 +2806,6 @@ function draftToScheduleGame(
     isConferenceGame: row.isConferenceGame,
     isPlayed: row.isPlayed,
   };
-}
-
-function getTop25FromStandings(): Array<{
-  rank: number;
-  teamId: string;
-  teamName: string;
-  wins: number;
-  losses: number;
-}> {
-  const season = PLACEHOLDER_DYNASTY.seasons.find(
-    (item) => item.year === PLACEHOLDER_DYNASTY.currentSeasonYear
-  );
-  return (season?.standings ?? [])
-    .filter((standing) => standing.ranking !== undefined)
-    .sort((a, b) => (a.ranking ?? 999) - (b.ranking ?? 999))
-    .map((standing) => ({
-      rank: standing.ranking ?? 0,
-      teamId: standing.teamId,
-      teamName: PLACEHOLDER_TEAMS.find((team) => team.id === standing.teamId)?.name ?? standing.teamId,
-      wins: standing.wins,
-      losses: standing.losses,
-    }));
 }
 
 export function CommissionerHistoryPage() {
@@ -2714,7 +2861,9 @@ function SearchableTeamSelect({
     const query = text.trim().toLowerCase();
     if (!query) return teams;
     return teams.filter((team) =>
-      `${team.name} ${team.abbreviation} ${team.id}`.toLowerCase().includes(query)
+      `${team.name} ${team.abbreviation} ${team.id} ${team.conferenceId ?? ''}`
+        .toLowerCase()
+        .includes(query)
     );
   }, [teams, text]);
 
@@ -2783,7 +2932,10 @@ function SearchableTeamSelect({
                   chooseTeam(team);
                 }}
               >
-                <span>{team.name}</span>
+                <span className="combo-select-team">
+                  <TeamMark team={team} size="sm" />
+                  <span>{team.name}</span>
+                </span>
                 <small>{team.abbreviation}</small>
               </button>
             ))
@@ -2791,6 +2943,23 @@ function SearchableTeamSelect({
         </div>
       )}
     </div>
+  );
+}
+
+function TeamNameWithMark({
+  team,
+  teamId,
+  name,
+}: {
+  team?: Team;
+  teamId?: string;
+  name: string;
+}) {
+  return (
+    <span className="team-name-with-mark">
+      <TeamMark team={team} teamId={teamId} name={name} size="sm" />
+      <span>{name}</span>
+    </span>
   );
 }
 

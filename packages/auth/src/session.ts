@@ -34,8 +34,7 @@ export function loadSession(): AuthSession | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as AuthSession;
-    const user = DEMO_USERS.find((u) => u.id === parsed.user.id);
-    if (!user) return null;
+    if (!parsed.user?.id || !parsed.user.displayName || !parsed.dynastyId) return null;
     return parsed;
   } catch {
     return null;

@@ -1,12 +1,6 @@
 import cors from 'cors';
 import express from 'express';
-import {
-  PLACEHOLDER_DYNASTY,
-  PLACEHOLDER_PROGRESSION,
-  PLACEHOLDER_ROSTERS,
-  PLACEHOLDER_TEAMS,
-} from '@ncaa/domain';
-import { createSyncPayload, type DynastySyncPayload, type SeasonDataUpload } from '@ncaa/sync';
+import type { DynastySyncPayload, SeasonDataUpload } from '@ncaa/sync';
 import {
   approveClaim,
   assignTeamToUser,
@@ -27,9 +21,10 @@ import { getLocalStorageStatus } from './local-storage.js';
 
 const app = express();
 const port = Number(process.env.PORT ?? 8787);
+const jsonLimit = process.env.NCAA_API_JSON_LIMIT ?? '25mb';
 
 app.use(cors());
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: jsonLimit }));
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true, storage: getLocalStorageStatus() });
@@ -64,8 +59,7 @@ app.get('/auth/session/:userId', (req, res) => {
 });
 
 app.get('/dynasties/:dynastyId', (req, res) => {
-  void req.params.dynastyId;
-  res.json(getDynastyBundle());
+  res.json(getDynastyBundle(req.params.dynastyId));
 });
 
 app.post('/dynasties/:dynastyId/season-uploads', (req, res) => {
@@ -193,14 +187,8 @@ app.post('/sync/batches', (req, res) => {
     }
     if (!payload.syncedAt) payload.syncedAt = new Date().toISOString();
   } else {
-    const uploadedByUserId = body?.uploadedByUserId ?? 'user-admin';
-    payload = createSyncPayload(
-      uploadedByUserId,
-      PLACEHOLDER_DYNASTY,
-      PLACEHOLDER_TEAMS,
-      PLACEHOLDER_ROSTERS,
-      PLACEHOLDER_PROGRESSION
-    );
+    res.status(400).json({ error: 'payload required' });
+    return;
   }
 
   const { batch, updated } = ingestSync(payload);

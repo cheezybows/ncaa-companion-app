@@ -81,6 +81,21 @@ export class CommissionerRepository {
       }));
   }
 
+  deleteUsers(userIds: string[]): number {
+    if (!userIds.length) return 0;
+    const deleteTenures = this.db.prepare(`DELETE FROM team_tenures WHERE user_id = @userId`);
+    const deleteUser = this.db.prepare(`DELETE FROM commissioner_users WHERE id = @userId`);
+    const tx = this.db.transaction((ids: string[]) => {
+      let deleted = 0;
+      for (const userId of ids) {
+        deleteTenures.run({ userId });
+        deleted += deleteUser.run({ userId }).changes;
+      }
+      return deleted;
+    });
+    return tx(userIds) as number;
+  }
+
   listTeamConferenceOverrides(): Record<string, string> {
     const rows = this.db
       .prepare(`SELECT team_id as teamId, conference_id as conferenceId FROM team_conference_overrides`)
@@ -279,6 +294,7 @@ export class CommissionerRepository {
                 archived_rankings_json as archivedRankingsJson,
                 team_roster_snapshots_json as teamRosterSnapshotsJson,
                 checkpoints_json as checkpointsJson,
+                progression_json as progressionJson,
                 player_catalog_json as playerCatalogJson,
                 postseason_results_json as postseasonResultsJson,
                 schedule_imports_json as scheduleImportsJson,
@@ -293,6 +309,7 @@ export class CommissionerRepository {
           archivedRankingsJson: string;
           teamRosterSnapshotsJson: string;
           checkpointsJson?: string;
+          progressionJson?: string;
           playerCatalogJson?: string;
           postseasonResultsJson?: string;
           scheduleImportsJson: string;
@@ -309,6 +326,7 @@ export class CommissionerRepository {
       archivedRankings: JSON.parse(row.archivedRankingsJson),
       teamRosterSnapshots: JSON.parse(row.teamRosterSnapshotsJson),
       checkpoints: JSON.parse(row.checkpointsJson ?? '[]'),
+      progression: JSON.parse(row.progressionJson ?? '[]'),
       playerCatalog: JSON.parse(row.playerCatalogJson ?? '[]'),
       postseasonResults: JSON.parse(row.postseasonResultsJson ?? '[]'),
       scheduleImports: JSON.parse(row.scheduleImportsJson),
@@ -321,10 +339,10 @@ export class CommissionerRepository {
       .prepare(
         `INSERT OR REPLACE INTO commissioner_dynasty_state
          (dynasty_id, current_season_year, archived_seasons_json, archived_rankings_json,
-          team_roster_snapshots_json, checkpoints_json, player_catalog_json,
+          team_roster_snapshots_json, checkpoints_json, progression_json, player_catalog_json,
           postseason_results_json, schedule_imports_json, top25_imports_json, updated_at)
          VALUES (@dynastyId, @currentSeasonYear, @archivedSeasonsJson, @archivedRankingsJson,
-                 @teamRosterSnapshotsJson, @checkpointsJson, @playerCatalogJson,
+                 @teamRosterSnapshotsJson, @checkpointsJson, @progressionJson, @playerCatalogJson,
                  @postseasonResultsJson, @scheduleImportsJson, @top25ImportsJson, @updatedAt)`
       )
       .run({
@@ -334,6 +352,7 @@ export class CommissionerRepository {
         archivedRankingsJson: JSON.stringify(state.archivedRankings),
         teamRosterSnapshotsJson: JSON.stringify(state.teamRosterSnapshots),
         checkpointsJson: JSON.stringify(state.checkpoints),
+        progressionJson: JSON.stringify(state.progression),
         playerCatalogJson: JSON.stringify(state.playerCatalog),
         postseasonResultsJson: JSON.stringify(state.postseasonResults),
         scheduleImportsJson: JSON.stringify(state.scheduleImports),

@@ -1,15 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import {
-  DEMO_DYNASTY_ID,
-  PLACEHOLDER_DYNASTY,
-  PLACEHOLDER_ROSTERS,
-} from '@ncaa/domain';
 import type {
   AppUser,
+  HeismanWinner,
+  Player,
   RankingSnapshot,
   Roster,
   Season,
   SeasonAdvanceAssignmentInput,
+  SeasonAdvanceHeismanInput,
   SeasonAdvancePreview,
   Team,
   TeamRosterSnapshot,
@@ -154,6 +152,51 @@ export function resolveActiveTeamForAssignment(
   return assignment.currentTeamId;
 }
 
+function normalizePlayerName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ');
+}
+
+function fullPlayerName(player: Player): string {
+  return `${player.firstName} ${player.lastName}`.trim();
+}
+
+export function resolveHeismanWinner(input: {
+  heisman?: SeasonAdvanceHeismanInput;
+  assignments: SeasonAdvanceAssignmentInput[];
+  rosterByTeamId: Map<string, Roster>;
+  seasonYear: number;
+}): HeismanWinner | undefined {
+  const playerName = input.heisman?.playerName.trim();
+  const teamId = input.heisman?.teamId;
+  if (!playerName && !teamId) return undefined;
+  if (!playerName || !teamId) {
+    throw new Error('Enter a Heisman winner name and choose the player team.');
+  }
+
+  const assignedTeam = input.assignments.find((assignment) => assignment.currentTeamId === teamId);
+  const normalizedWinner = normalizePlayerName(playerName);
+  const matchedPlayer = input.rosterByTeamId
+    .get(teamId)
+    ?.players.find((player) => normalizePlayerName(fullPlayerName(player)) === normalizedWinner);
+
+  return {
+    seasonYear: input.seasonYear,
+    playerName: matchedPlayer ? fullPlayerName(matchedPlayer) : playerName,
+    teamId,
+    playerId: matchedPlayer?.id,
+    position: matchedPlayer?.position,
+    classYear: matchedPlayer?.classYear,
+    overall: matchedPlayer?.ratings.overall,
+    userId: assignedTeam?.userId,
+    coachName: assignedTeam?.coachName,
+    matchedRosterPlayer: Boolean(matchedPlayer),
+  };
+}
+
 export function buildArchivedSeason(
   dynastyId: string,
   seasonYear: number,
@@ -167,8 +210,8 @@ export function buildArchivedSeason(
     merged = mergeTeamScheduleIntoSeason(merged, imported);
   }
 
-  const fallback =
-    PLACEHOLDER_DYNASTY.seasons.find((season) => season.year === seasonYear) ??
+  const base =
+    merged ??
     ({
       id: `season-${seasonYear}`,
       dynastyId,
@@ -177,8 +220,6 @@ export function buildArchivedSeason(
       schedule: [],
       standings: [],
     } satisfies Season);
-
-  const base = merged ?? fallback;
   return applyRankingSnapshotsToSeason(base, archivedRankings);
 }
 
@@ -205,6 +246,7 @@ export function buildRosterSnapshotsForSeason(
 }
 
 export function buildSeasonAdvancePreview(input: {
+  dynastyId: string;
   currentSeasonYear: number;
   assignments: SeasonAdvanceAssignmentInput[];
   scheduleImports: ScheduleCaptureImport[];
@@ -221,7 +263,7 @@ export function buildSeasonAdvancePreview(input: {
     ...input.top25Imports.map((item) => item.rankings),
   ];
   const archivedSeason = buildArchivedSeason(
-    DEMO_DYNASTY_ID,
+    input.dynastyId,
     input.currentSeasonYear,
     input.scheduleImports,
     rankingsForArchive,
@@ -319,7 +361,7 @@ export function applyTenureUpdatesForSeasonAdvance(input: {
 export function rosterMapFromImports(
   imports: Array<{ teamId: string; roster: Roster; importedAt?: string }>
 ): Map<string, Roster> {
-  const map = new Map<string, Roster>(Object.entries(PLACEHOLDER_ROSTERS));
+  const map = new Map<string, Roster>();
   const newestByTeam = new Map<string, { roster: Roster; importedAt: string }>();
 
   for (const item of imports) {

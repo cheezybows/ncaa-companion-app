@@ -6,6 +6,7 @@ import {
   buildArchivedSeason,
   buildDefaultSeasonAdvanceAssignments,
   mergeTeamScheduleIntoSeason,
+  resolveHeismanWinner,
   rosterMapFromImports,
   validateSeasonAdvanceAssignments,
 } from './season-advance.js';
@@ -177,5 +178,47 @@ describe('season archive helpers', () => {
     ]);
 
     expect(map.get('team-iowa')?.players[0]?.id).toBe('new');
+  });
+
+  it('matches a Heisman winner to a user-controlled roster player', () => {
+    const winner = resolveHeismanWinner({
+      heisman: { playerName: 'new player', teamId: 'team-iowa' },
+      assignments: [
+        {
+          tenureId: 'tenure-1',
+          userId: 'user-coach',
+          coachName: 'Coach',
+          currentTeamId: 'team-iowa',
+          currentTeamName: 'Iowa',
+          action: 'stay',
+        },
+      ],
+      rosterByTeamId: new Map([
+        [
+          'team-iowa',
+          {
+            teamId: 'team-iowa',
+            players: [
+              {
+                id: 'new-player',
+                teamId: 'team-iowa',
+                firstName: 'New',
+                lastName: 'Player',
+                position: 'QB',
+                classYear: 'JR',
+                ratings: { overall: 96 },
+              },
+            ],
+            depthChart: [],
+            updatedAt: '2026-01-02T00:00:00.000Z',
+          },
+        ],
+      ]),
+      seasonYear: 2026,
+    });
+
+    expect(winner?.playerId).toBe('new-player');
+    expect(winner?.coachName).toBe('Coach');
+    expect(winner?.matchedRosterPlayer).toBe(true);
   });
 });

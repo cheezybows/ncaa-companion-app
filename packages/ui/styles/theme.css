@@ -1,0 +1,102 @@
+/* NCAA Companion — design tokens (Dark Field Retro default) */
+
+:root,
+[data-theme='dark-field-retro'] {
+  --color-bg-base: #001219;
+  --color-bg-surface: #000e12;
+  --color-bg-raised: #001a22;
+  --color-bg-overlay: #002633;
+
+  --color-teal-900: #003d4d;
+  --color-teal-700: #005f73;
+  --color-teal-500: #0a9396;
+  --color-teal-300: #94d2bd;
+  --color-teal-100: #d4ece5;
+
+  --color-gold-500: #ee9b00;
+  --color-gold-700: #ca6702;
+  --color-gold-900: #bb3e03;
+
+  --color-danger-400: #ae2012;
+  --color-danger-500: #9b2226;
+  --color-danger-text: #e87b7f;
+  --color-danger-bg: rgba(155, 34, 38, 0.15);
+  --color-danger-border: rgba(155, 34, 38, 0.6);
+
+  --color-win: #0a9396;
+  --color-loss: #e87b7f;
+
+  --color-text-primary: #e9d8a6;
+  --color-text-muted: #94d2bd;
+  --color-text-faint: #005f73;
+  --color-input-bg: #0C1729;
+  --color-input-text: #ffffff;
+  --color-input-placeholder: #94d2bd;
+
+  --font-display: 'Bebas Neue', Impact, serif;
+  --font-body: 'IBM Plex Mono', 'Courier New', monospace;
+
+  --text-xs: 12px;
+  --text-sm: 15px;
+  --text-base: 18px;
+  --text-md: 21px;
+  --text-lg: 24px;
+  --text-xl: 30px;
+  --text-display-sm: 27px;
+  --text-display-md: 39px;
+  --text-display-lg: 60px;
+
+  --tracking-tight: 0.5px;
+  --tracking-normal: 1px;
+  --tracking-wide: 2px;
+  --tracking-wider: 3px;
+  --tracking-widest: 4px;
+
+  --leading-tight: 1.1;
+  --leading-normal: 1.4;
+  --leading-relaxed: 1.6;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  --sidebar-width: 200px;
+  --topbar-height: 72px;
+  --panel-padding: 16px;
+  --panel-padding-sm: 12px;
+  --content-gap: 14px;
+  --section-gap: 20px;
+
+  --border-width: 1px;
+  --border-accent: 2px;
+  --border-nav-active: 3px;
+
+  --border-default: 1px solid var(--color-teal-700);
+  --border-subtle: 1px solid rgba(0, 95, 115, 0.3);
+  --border-faint: 1px solid rgba(0, 95, 115, 0.15);
+  --border-active: 1px solid var(--color-teal-500);
+  --border-gold: 1px solid var(--color-gold-500);
+  --border-danger: 1px solid var(--color-danger-border);
+
+  --panel-accent-teal: var(--color-teal-500);
+  --panel-accent-gold: var(--color-gold-500);
+  --panel-accent-amber: var(--color-gold-700);
+  --panel-accent-rust: var(--color-gold-900);
+  --panel-accent-none: var(--color-teal-700);
+
+  --radius-none: 0;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+
+  --opacity-nav: 0.65;
+  --opacity-disabled: 0.4;
+
+  --transition-fast: 120ms ease;
+  --transition-base: 200ms ease;
+}

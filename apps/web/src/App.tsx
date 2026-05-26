@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import type { IndexedFile } from '@ncaa/domain';
+import {
+  AppShell,
+  DataTable,
+  NavItem,
+  SidebarBrand,
+  SidebarNav,
+} from '@ncaa/ui';
 import { getCompanionApi } from './api';
 import type { AppSummary } from './api';
 import {
@@ -21,7 +28,7 @@ const nav = [
   { to: '/commissioner', label: 'Overview', end: true },
   { to: '/commissioner/users', label: 'Users' },
   { to: '/commissioner/assignments', label: 'Assign Teams' },
-  { to: '/commissioner/imports', label: 'Imports' },
+  { to: '/commissioner/imports', label: 'Team Imports' },
   { to: '/commissioner/advance-week', label: 'Advance Week' },
   { to: '/commissioner/advance-season', label: 'Advance Season' },
   { to: '/commissioner/publish', label: 'Publish' },
@@ -31,10 +38,10 @@ const nav = [
 ];
 
 export function App() {
+  const location = useLocation();
   const [summary, setSummary] = useState<AppSummary | null>(null);
   const [files, setFiles] = useState<Array<IndexedFile & { workingCopyPath?: string }>>([]);
   const [activeUserCount, setActiveUserCount] = useState(0);
-  const [activeLeagueName, setActiveLeagueName] = useState<string | null>(null);
   const [lastPublishDate, setLastPublishDate] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -49,7 +56,6 @@ export function App() {
 
     if (api.getCommissionerConfig) {
       const config = await api.getCommissionerConfig();
-      setActiveLeagueName(config.leagueName);
       const [tenures, history] = await Promise.all([
         api.listCommissionerTenures?.(config.dynastyId) ?? [],
         api.listPublishHistory?.(config.dynastyId) ?? [],
@@ -89,63 +95,67 @@ export function App() {
   }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div>
-          <img
-            className="sidebar-logo commissioner-logo"
-            src="/college-football-comissioner-app-logo.svg"
-            alt="College Football Commissioner App"
-          />
-          <p className="muted">Assign coaches, import rosters, and publish to the hosted portal.</p>
-        </div>
-        <nav>
-          {nav.map((item) => (
-            <NavItem key={item.to} to={item.to} label={item.label} end={item.end} />
-          ))}
-        </nav>
-        <div className="sidebar-card">
-          <span>Active League</span>
-          <strong>{activeLeagueName ?? 'Loading...'}</strong>
-          <span>Active Users</span>
-          <strong>{activeUserCount}</strong>
-          <small>Last publish: {formatSidebarDate(lastPublishDate)}</small>
-        </div>
-      </aside>
-
-      <main className="content">
-        {message && <div className="notice">{message}</div>}
-        <Routes>
-          <Route path="/" element={<Navigate to="/commissioner" replace />} />
-          <Route
-            path="/scanner"
-            element={
-              <ScannerView
-                summary={summary}
-                files={files}
-                isScanning={isScanning}
-                onScanFolder={scanFolder}
-                onExportData={exportData}
+    <AppShell
+      sidebar={
+        <>
+          <SidebarBrand logoSrc="/college-football-comissioner-app-logo.svg" />
+          <SidebarNav>
+            {nav.map((item) => (
+              <NavItem
+                key={item.to}
+                to={item.to}
+                label={item.label}
+                active={isNavActive(location.pathname, item.to, item.end)}
               />
-            }
-          />
-          <Route path="/admin" element={<CommissionerAdminPage onLeagueChanged={refresh} />} />
-          <Route path="/commissioner" element={<CommissionerShell />}>
-            <Route index element={<CommissionerOverviewPage />} />
-            <Route path="users" element={<CommissionerUsersPage />} />
-            <Route path="assignments" element={<CommissionerAssignmentsPage />} />
-            <Route path="imports" element={<CommissionerTeamImportsPage />} />
-            <Route path="advance-week" element={<CommissionerArchivePage />} />
-            <Route path="archive" element={<Navigate to="advance-week" replace />} />
-            <Route path="advance-season" element={<CommissionerAdvanceSeasonPage />} />
-            <Route path="publish" element={<CommissionerPublishPage />} />
-            <Route path="history" element={<CommissionerHistoryPage />} />
-          </Route>
-          <Route path="*" element={<Navigate to="/commissioner" replace />} />
-        </Routes>
-      </main>
-    </div>
+            ))}
+          </SidebarNav>
+        </>
+      }
+      sidebarFooter={
+        <div className="sidebar-footer">
+          <span className="sidebar-footer-label">League snapshot</span>
+          <span className="sidebar-footer-number">{activeUserCount}</span>
+          <span className="sidebar-footer-sub">active coaches</span>
+          <span className="sidebar-footer-sub">Last publish: {formatSidebarDate(lastPublishDate)}</span>
+        </div>
+      }
+    >
+      {message && <div className="notice">{message}</div>}
+      <Routes>
+        <Route path="/" element={<Navigate to="/commissioner" replace />} />
+        <Route
+          path="/scanner"
+          element={
+            <ScannerView
+              summary={summary}
+              files={files}
+              isScanning={isScanning}
+              onScanFolder={scanFolder}
+              onExportData={exportData}
+            />
+          }
+        />
+        <Route path="/admin" element={<CommissionerAdminPage onLeagueChanged={refresh} />} />
+        <Route path="/commissioner" element={<CommissionerShell />}>
+          <Route index element={<CommissionerOverviewPage />} />
+          <Route path="users" element={<CommissionerUsersPage />} />
+          <Route path="assignments" element={<CommissionerAssignmentsPage />} />
+          <Route path="imports" element={<CommissionerTeamImportsPage />} />
+          <Route path="advance-week" element={<CommissionerArchivePage />} />
+          <Route path="archive" element={<Navigate to="advance-week" replace />} />
+          <Route path="advance-season" element={<CommissionerAdvanceSeasonPage />} />
+          <Route path="publish" element={<CommissionerPublishPage />} />
+          <Route path="history" element={<CommissionerHistoryPage />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/commissioner" replace />} />
+      </Routes>
+    </AppShell>
   );
+}
+
+function isNavActive(pathname: string, to: string, end?: boolean): boolean {
+  if (end) return pathname === to;
+  return pathname === to || pathname.startsWith(`${to}/`);
 }
 
 function formatSidebarDate(value: string | null): string {
@@ -157,26 +167,6 @@ function formatSidebarDate(value: string | null): string {
     hour: 'numeric',
     minute: '2-digit',
   });
-}
-
-function NavItem({
-  to,
-  label,
-  end,
-}: {
-  to: string;
-  label: string;
-  end?: boolean;
-}) {
-  const location = useLocation();
-  const active = end
-    ? location.pathname === to
-    : location.pathname === to || location.pathname.startsWith(`${to}/`);
-  return (
-    <Link className={active ? 'nav-link active' : 'nav-link'} to={to}>
-      {label}
-    </Link>
-  );
 }
 
 function CommissionerShell() {
@@ -263,38 +253,3 @@ function ScannerView({
     </section>
   );
 }
-
-function DataTable({
-  headers,
-  rows,
-  empty = 'No data available.',
-}: {
-  headers: string[];
-  rows: string[][];
-  empty?: string;
-}) {
-  if (rows.length === 0) return <p className="muted">{empty}</p>;
-  return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            {headers.map((header) => (
-              <th key={header}>{header}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, rowIndex) => (
-            <tr key={rowIndex}>
-              {row.map((cell, cellIndex) => (
-                <td key={`${rowIndex}-${cellIndex}`}>{cell}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-

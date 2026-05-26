@@ -9,6 +9,7 @@ import type {
   SeasonStanding,
   SyncBatch,
   Team,
+  TeamTenure,
 } from '@ncaa/domain';
 
 export interface DynastySyncPayload {
@@ -23,6 +24,7 @@ export interface DynastySyncPayload {
   checkpoints?: DynastyCheckpoint[];
   playerCatalog?: PlayerCatalogEntry[];
   postseasonResults?: PostseasonResult[];
+  teamTenures?: TeamTenure[];
 }
 
 export interface SyncBatchRequest {
@@ -73,6 +75,7 @@ export function createSyncPayload(
     checkpoints?: DynastyCheckpoint[];
     playerCatalog?: PlayerCatalogEntry[];
     postseasonResults?: PostseasonResult[];
+    teamTenures?: TeamTenure[];
   }
 ): DynastySyncPayload {
   const batchId = crypto.randomUUID();
@@ -88,5 +91,6 @@ export function createSyncPayload(
     checkpoints: extras?.checkpoints,
     playerCatalog: extras?.playerCatalog,
     postseasonResults: extras?.postseasonResults,
+    teamTenures: extras?.teamTenures,
   };
 }

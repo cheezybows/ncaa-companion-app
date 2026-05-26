@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { DEMO_DYNASTY_ID, PLACEHOLDER_DYNASTY, PLACEHOLDER_ROSTERS, PLACEHOLDER_TEAMS } from '@ncaa/domain';
+import {
+  DEMO_DYNASTY_ID,
+  DEMO_USERS,
+  PLACEHOLDER_DYNASTY,
+  PLACEHOLDER_ROSTERS,
+  PLACEHOLDER_TEAMS,
+} from '@ncaa/domain';
 import type { ScheduleCaptureImport } from '@ncaa/parsers';
 import { MemoryCommissionerRepository } from '@ncaa/storage/memory';
 import { CommissionerService } from './commissioner-service.js';
@@ -52,14 +58,103 @@ describe('CommissionerService schedule and rankings publish', () => {
   });
 });
 
+describe('CommissionerService league deletion', () => {
+  it('removes demo users when the demo league is deleted', async () => {
+    const store = new MemoryCommissionerRepository();
+    store.createLeague({
+      id: DEMO_DYNASTY_ID,
+      name: 'Demo League',
+      startingSeasonYear: 2026,
+      commissionerUserId: 'user-admin',
+    });
+    const localLeague = store.createLeague({
+      name: 'Local League',
+      startingSeasonYear: 2026,
+      commissionerUserId: 'user-admin',
+    });
+    store.setActiveLeagueId(localLeague.id);
+    store.upsertUsers(DEMO_USERS);
+
+    const service = new CommissionerService(store);
+
+    await service.deleteLeague(DEMO_DYNASTY_ID);
+
+    expect(store.listUsers().some((user) => DEMO_USERS.some((demo) => demo.id === user.id))).toBe(false);
+  });
+
+  it('removes orphaned demo users on startup after the demo league is already gone', () => {
+    const store = new MemoryCommissionerRepository();
+    const localLeague = store.createLeague({
+      name: 'Local League',
+      startingSeasonYear: 2026,
+      commissionerUserId: 'user-admin',
+    });
+    store.setActiveLeagueId(localLeague.id);
+    store.upsertUsers(DEMO_USERS);
+
+    new CommissionerService(store);
+
+    expect(store.listUsers().some((user) => DEMO_USERS.some((demo) => demo.id === user.id))).toBe(false);
+  });
+});
+
+describe('CommissionerService coach portal users', () => {
+  it('includes active admins in team-assignment candidates', () => {
+    const store = new MemoryCommissionerRepository();
+    store.createLeague({
+      id: DEMO_DYNASTY_ID,
+      name: 'Demo League',
+      startingSeasonYear: 2026,
+      commissionerUserId: 'user-admin',
+    });
+    store.upsertUsers(DEMO_USERS);
+    const service = new CommissionerService(store);
+
+    expect(service.listCoaches().map((user) => user.id)).toContain('user-admin');
+  });
+});
+
+describe('CommissionerService user deletion', () => {
+  it('removes a user and their team tenures', async () => {
+    const store = new MemoryCommissionerRepository();
+    store.createLeague({
+      id: DEMO_DYNASTY_ID,
+      name: 'Demo League',
+      startingSeasonYear: 2026,
+      commissionerUserId: 'user-admin',
+    });
+    store.upsertUsers(DEMO_USERS);
+    store.saveTenure({
+      id: 'tenure-delete-user',
+      careerId: 'career-delete-user',
+      userId: 'user-coach-carter',
+      dynastyId: DEMO_DYNASTY_ID,
+      teamId: 'team-alabama',
+      role: 'coach',
+      status: 'active',
+      startSeasonYear: 2026,
+      label: 'Delete user test',
+    });
+    const service = new CommissionerService(store);
+
+    await service.deleteUser('user-coach-carter');
+
+    expect(service.listUsers().some((user) => user.id === 'user-coach-carter')).toBe(false);
+    expect(service.listTenures(DEMO_DYNASTY_ID).some((tenure) => tenure.userId === 'user-coach-carter')).toBe(
+      false
+    );
+  });
+});
+
 describe('CommissionerService roster merge', () => {
   it('merges positional roster imports by player name and preserves player ids', () => {
     const store = new MemoryCommissionerRepository();
     const service = new CommissionerService(store);
+    const dynastyId = service.getActiveDynastyId();
     const team = PLACEHOLDER_TEAMS.find((item) => item.id === 'team-iowa')!;
 
     service.saveRosterImport({
-      dynastyId: DEMO_DYNASTY_ID,
+      dynastyId,
       team,
       sourceLabel: 'QB import',
       roster: {
@@ -80,7 +175,7 @@ describe('CommissionerService roster merge', () => {
     });
 
     service.saveRosterImport({
-      dynastyId: DEMO_DYNASTY_ID,
+      dynastyId,
       team,
       sourceLabel: 'TE import',
       roster: {
@@ -122,6 +217,7 @@ describe('CommissionerService season advance', () => {
   it('advances season year and archives prior schedule in publish payload', async () => {
     const store = new MemoryCommissionerRepository();
     const service = new CommissionerService(store);
+    const dynastyId = service.getActiveDynastyId();
 
     service.saveScheduleImport(scheduleImport('team-alabama', 'team-auburn', 1));
     service.saveScheduleImport(scheduleImport('team-georgia', 'team-clemson', 2));
@@ -130,7 +226,7 @@ describe('CommissionerService season advance', () => {
     const alabamaRoster = PLACEHOLDER_ROSTERS['team-alabama'];
     if (alabama && alabamaRoster) {
       store.saveRosterImport({
-        dynastyId: DEMO_DYNASTY_ID,
+        dynastyId,
         team: alabama,
         roster: alabamaRoster,
         sourceLabel: 'Test import',
@@ -141,7 +237,7 @@ describe('CommissionerService season advance', () => {
       id: 'tenure-1',
       careerId: 'career-1',
       userId: 'user-coach-1',
-      dynastyId: DEMO_DYNASTY_ID,
+      dynastyId,
       teamId: 'team-alabama',
       role: 'coach',
       status: 'active',
@@ -149,10 +245,17 @@ describe('CommissionerService season advance', () => {
     });
 
     const preview = service.previewSeasonAdvance();
+    const heismanPlayer = alabamaRoster?.players[0];
     const result = await service.advanceToNextSeason(
       preview.assignments.map((assignment) =>
         assignment.tenureId === 'tenure-1' ? { ...assignment, action: 'stay' as const } : assignment
-      )
+      ),
+      heismanPlayer
+        ? {
+            playerName: `${heismanPlayer.firstName} ${heismanPlayer.lastName}`,
+            teamId: 'team-alabama',
+          }
+        : undefined
     );
     const payload = service.buildPublishPayload();
 
@@ -162,6 +265,7 @@ describe('CommissionerService season advance', () => {
     expect(archived).toBeDefined();
     expect(archived?.schedule.some((game) => game.homeTeamId === 'team-alabama')).toBe(true);
     expect(archived?.schedule.some((game) => game.homeTeamId === 'team-georgia')).toBe(true);
+    expect(archived?.heismanWinner?.playerId).toBe(heismanPlayer?.id);
     expect(payload.dynasty.teamRosterSnapshots?.length ?? 0).toBeGreaterThan(0);
     expect(payload.dynasty.rankings?.every((ranking) => ranking.seasonYear < preview.nextSeasonYear)).not.toBe(false);
   });
@@ -169,12 +273,13 @@ describe('CommissionerService season advance', () => {
   it('persists dynasty state in memory repository', async () => {
     const store = new MemoryCommissionerRepository();
     const service = new CommissionerService(store);
+    const dynastyId = service.getActiveDynastyId();
 
     store.saveTenure({
       id: 'tenure-2',
       careerId: 'career-2',
       userId: 'user-coach-2',
-      dynastyId: DEMO_DYNASTY_ID,
+      dynastyId,
       teamId: 'team-iowa',
       role: 'coach',
       status: 'active',
@@ -188,7 +293,7 @@ describe('CommissionerService season advance', () => {
       }))
     );
 
-    const state = store.getDynastyState(DEMO_DYNASTY_ID, PLACEHOLDER_DYNASTY.currentSeasonYear);
+    const state = store.getDynastyState(dynastyId, PLACEHOLDER_DYNASTY.currentSeasonYear);
     expect(state.currentSeasonYear).toBe(PLACEHOLDER_DYNASTY.currentSeasonYear + 1);
     expect(state.archivedSeasons.length).toBeGreaterThan(0);
   });

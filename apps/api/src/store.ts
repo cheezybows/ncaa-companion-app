@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type {
   AppUser,
   AuthSession,
+  Dynasty,
   ScheduleGame,
   Season,
   SeasonStanding,
@@ -10,29 +11,49 @@ import type {
   TeamTenure,
 } from '@ncaa/domain';
 import {
-  DEMO_CLAIMS,
   DEMO_DYNASTY_ID,
   DEMO_HOSTED_DYNASTY,
-  DEMO_TENURES,
-  DEMO_USERS,
-  PLACEHOLDER_DYNASTY,
-  PLACEHOLDER_PROGRESSION,
-  PLACEHOLDER_ROSTERS,
-  PLACEHOLDER_TEAMS,
 } from '@ncaa/domain';
 import { applySyncPayload, createSyncPayload, getImportedState, isIdempotentBatch } from '@ncaa/sync';
 import type { DynastySyncPayload, SeasonDataUpload, SeasonDataUploadResponse } from '@ncaa/sync';
 import { getLocalCommissionerRepository } from './local-storage.js';
 
 const sessions = new Map<string, AuthSession>();
-const claims = [...DEMO_CLAIMS];
-const tenures = [...DEMO_TENURES];
+const claims: TeamClaim[] = [];
+const tenures: TeamTenure[] = [];
 let syncBatches: SyncBatch[] = [];
 
 let syncedPayload: DynastySyncPayload | null = null;
 
+function defaultDynastyId(): string {
+  return syncedPayload?.dynastyId ?? DEMO_DYNASTY_ID;
+}
+
 function userPassword(user: AppUser): string {
   return user.temporaryPassword || 'password';
+}
+
+function canUseCoachPortal(user: AppUser): boolean {
+  return (user.role === 'coach' || user.role === 'admin') && (user.accessStatus ?? 'active') === 'active';
+}
+
+function emptyDynasty(dynastyId: string): Dynasty {
+  const now = new Date().toISOString();
+  const currentSeasonYear = new Date().getFullYear();
+  return {
+    id: dynastyId,
+    name: 'No dynasty published',
+    currentSeasonYear,
+    seasons: [],
+    rankings: [],
+    recruitingClasses: [],
+    teamRosterSnapshots: [],
+    checkpoints: [],
+    playerCatalog: [],
+    postseasonResults: [],
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 export function createSession(userId: string, password: string): AuthSession | null {
@@ -40,12 +61,13 @@ export function createSession(userId: string, password: string): AuthSession | n
   if (!user) return null;
   if ((user.accessStatus ?? 'active') !== 'active') return null;
   if (password !== userPassword(user)) return null;
-  const activeTenure = listTenures(userId, DEMO_DYNASTY_ID).find(
+  const dynastyId = defaultDynastyId();
+  const activeTenure = listTenures(userId, dynastyId).find(
     (t) => t.status === 'active'
   );
   const session: AuthSession = {
     user,
-    dynastyId: DEMO_DYNASTY_ID,
+    dynastyId,
     activeTenure,
   };
   sessions.set(user.id, session);
@@ -58,12 +80,13 @@ export function getSession(userId: string): AuthSession | undefined {
 
   const user = listUsers().find((item) => item.id === userId);
   if (!user) return undefined;
-  const activeTenure = listTenures(userId, DEMO_DYNASTY_ID).find(
+  const dynastyId = defaultDynastyId();
+  const activeTenure = listTenures(userId, dynastyId).find(
     (tenure) => tenure.status === 'active'
   );
   const session: AuthSession = {
     user,
-    dynastyId: DEMO_DYNASTY_ID,
+    dynastyId,
     activeTenure,
   };
   sessions.set(userId, session);
@@ -155,7 +178,7 @@ export function assignTeamToUser(input: {
   teamId: string;
   assignedByUserId: string;
 }): TeamTenure | null {
-  const user = listUsers().find((u) => u.id === input.userId && u.role === 'coach');
+  const user = listUsers().find((u) => u.id === input.userId && canUseCoachPortal(u));
   if (!user) return null;
   const repository = getLocalCommissionerRepository();
   const currentTenures = repository?.listTenures(input.dynastyId) ?? tenures;
@@ -209,7 +232,7 @@ export function assignTeamToUser(input: {
     userId: input.userId,
     dynastyId: input.dynastyId,
     teamId: input.teamId,
-    role: 'coach',
+    role: user.role,
     status: 'active',
     startSeasonYear: DEMO_HOSTED_DYNASTY.currentSeasonYear,
     label: 'Assigned by commissioner',
@@ -222,14 +245,21 @@ export function assignTeamToUser(input: {
   return tenure;
 }
 
-export function listTenures(userId: string, dynastyId: string): TeamTenure[] {
+function dynastyTenures(dynastyId: string): TeamTenure[] {
   const repository = getLocalCommissionerRepository();
   if (repository) {
-    return repository
-      .listTenures(dynastyId)
-      .filter((t) => t.userId === userId);
+    return repository.listTenures(dynastyId);
   }
-  return tenures.filter((t) => t.userId === userId && t.dynastyId === dynastyId);
+  const payloadTenures =
+    syncedPayload?.dynastyId === dynastyId ? syncedPayload.teamTenures ?? [] : [];
+  if (payloadTenures.length > 0) {
+    return payloadTenures;
+  }
+  return tenures.filter((t) => t.dynastyId === dynastyId);
+}
+
+export function listTenures(userId: string, dynastyId: string): TeamTenure[] {
+  return dynastyTenures(dynastyId).filter((t) => t.userId === userId);
 }
 
 export function ingestSync(payload: DynastySyncPayload): { batch: SyncBatch; updated: boolean } {
@@ -245,6 +275,14 @@ export function ingestSync(payload: DynastySyncPayload): { batch: SyncBatch; upd
 
   const state = applySyncPayload(payload);
   syncedPayload = payload;
+  if (payload.teamTenures?.length) {
+    for (const tenure of payload.teamTenures) {
+      const index = tenures.findIndex((item) => item.id === tenure.id);
+      if (index >= 0) tenures[index] = tenure;
+      else tenures.push(tenure);
+    }
+  }
+  sessions.clear();
   repository?.recordPublishedBatch(payload);
   const batch: SyncBatch = {
     id: payload.batchId,
@@ -268,22 +306,26 @@ export function ingestSync(payload: DynastySyncPayload): { batch: SyncBatch; upd
   return { batch, updated: true };
 }
 
-export function getDynastyBundle() {
+export function getDynastyBundle(dynastyId = defaultDynastyId()) {
   const repository = getLocalCommissionerRepository();
-  const localPayload = repository?.getLastPublishedPayload(DEMO_DYNASTY_ID) ?? null;
+  const localPayload = repository?.getLastPublishedPayload(dynastyId) ?? null;
   const payload = localPayload ?? syncedPayload;
-  const localHistory = repository?.listPublishHistory(DEMO_DYNASTY_ID, 10);
+  const localHistory = repository?.listPublishHistory(dynastyId, 10);
   return {
-    dynasty: payload?.dynasty ?? PLACEHOLDER_DYNASTY,
-    teams: payload?.teams ?? PLACEHOLDER_TEAMS,
-    rosters: payload?.rosters ?? PLACEHOLDER_ROSTERS,
-    progression: payload?.progression ?? PLACEHOLDER_PROGRESSION,
+    dynasty: payload?.dynasty ?? emptyDynasty(dynastyId),
+    teams: payload?.teams ?? [],
+    rosters: payload?.rosters ?? {},
+    progression: payload?.progression ?? [],
     checkpoints: payload?.checkpoints ?? payload?.dynasty?.checkpoints ?? [],
     playerCatalog: payload?.playerCatalog ?? payload?.dynasty?.playerCatalog ?? [],
     postseasonResults: payload?.postseasonResults ?? payload?.dynasty?.postseasonResults ?? [],
-    rankings: payload?.dynasty.rankings ?? PLACEHOLDER_DYNASTY.rankings ?? [],
+    rankings: payload?.dynasty.rankings ?? [],
+    teamTenures:
+      (repository?.listTenures(dynastyId).length
+        ? repository.listTenures(dynastyId)
+        : payload?.teamTenures) ?? [],
     hosted: DEMO_HOSTED_DYNASTY,
-    importState: getImportedState(DEMO_DYNASTY_ID) ?? null,
+    importState: getImportedState(dynastyId) ?? null,
     syncBatches: localHistory?.map((record) => ({
       id: record.batchId,
       dynastyId: record.dynastyId,
@@ -319,7 +361,7 @@ export function ingestSeasonDataUpload(input: {
     throw new Error('games must include at least one schedule game');
   }
 
-  const current = getDynastyBundle();
+  const current = getDynastyBundle(input.dynastyId);
   const seasonId = `season-${input.upload.seasonYear}`;
   const games = input.upload.games.map<ScheduleGame>((game, index) => {
     if (!game.homeTeamId || !game.awayTeamId) {
@@ -432,7 +474,5 @@ export function getAssignableTeamIds(userId: string): string[] {
 
 export function listUsers(): AppUser[] {
   const repository = getLocalCommissionerRepository();
-  const users = repository?.listUsers() ?? [];
-  if (users.length > 0) return users;
-  return DEMO_USERS;
+  return repository?.listUsers() ?? [];
 }
